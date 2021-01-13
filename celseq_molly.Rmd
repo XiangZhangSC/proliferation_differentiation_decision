@@ -206,6 +206,32 @@ umi_dat_all <- umi_dat_h6 %>%
 
 # Quality control
 
+## Does swsn-1 "KO" work as expected?
+
+My intuitive expectation is that I won't see swsn-1 mRNAs in all the "KO" samples (or very low level) and those mRNAs will be detected in wild type samples.
+
+```{r echo=FALSE, message=FALSE, fig.width=8, fig.height=8}
+# convert gene sequence name to gene name based on Wormbase
+annotation.df <- read.csv("gene_annotation_wormbase.csv")
+
+read_dat_all %>% 
+  pivot_longer(-gene_sequence_name, names_to = "library_id", values_to = "read_count") %>% 
+  left_join(annotation.df, by = c("gene_sequence_name" = "wormbase_gseq")) %>% 
+  dplyr::filter(external_gene_id == "swsn-1") %>% 
+  separate(library_id, into = c("genotype", "time_point", "sample_id"), remove = FALSE) %>% 
+  mutate(genotype = factor(genotype, levels = c("wt", "lox"))) %>% 
+  ggplot(aes(genotype, read_count)) + 
+  geom_point(aes(color = time_point), position = position_jitter(width = 0.2), size = 3, alpha = 0.6) + 
+  scale_color_brewer("Genotype", palette = "Dark2") + 
+  labs(x = NULL, y = "Unnormalized read count") + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(size = 12), 
+        legend.position = c(0.1,0.8), 
+        legend.background = element_rect(fill = "transparent"))
+```
+
+WOW! I observed swsn-1 mRNAs in "KO" group as well as wild type group. Why?
+
 ## Sequencing depth
 
 ```{r echo=FALSE, message=FALSE, fig.width=12, fig.height=8}
@@ -692,9 +718,6 @@ my_contrasts <- makeContrasts(
 ```
 
 ```{r include=FALSE}
-# convert gene sequence name to gene name based on Wormbase
-annotation.df <- read.csv("gene_annotation_wormbase.csv")
-
 tidy_togTags <- function(lrt, wormbase.df) {
   topTags(lrt, n = nrow(read_count_mat_filtered), adjust.method = "fdr") %>% 
   as.data.frame() %>% 
