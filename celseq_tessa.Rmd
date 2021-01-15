@@ -1,0 +1,645 @@
+---
+title: "Gene expression analysis of hlh-1 KO M lineage of *c. elegans*"
+author: "Xiang Zhang"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+bibliography: /home/xiang/Documents/Bibliography/c_elegans.bib
+---
+
+```{r include=FALSE,message=FALSE}
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(tibble)
+library(forcats)
+library(GGally)
+library(edgeR)
+```
+
+# Introduction
+
+This experiment knocked out hlh-1 in M lineage. 
+CEL-seq2 protocol is used for gene expression anaysis. 
+Two groups, wild type and lox. 
+
+# Load data
+
+```{r echo=FALSE, message=FALSE}
+umi_dat <- readr::read_tsv("hlh-1_rnaseq/UTU-TG-b003_H3LCHBGXH_S2_R2.BarcodeCounts.tsv")
+read_dat <- readr::read_tsv("hlh-1_rnaseq/UTU-TG-b003_H3LCHBGXH_S2_R2.ReadCounts.tsv")
+
+meta_dat <- data.frame(
+  library_id = colnames(umi_dat)[-1], 
+  genotype = c(rep("wt", times = 6), rep("lox", times = 6)), 
+  sample_id = rep(str_c("rep", c("1", "2", "3")), times = 4)
+) %>% 
+  mutate(time_point = str_c("Hour", str_sub(library_id, -3, -2)), 
+         group_id = str_c(genotype, time_point, sep = "."))
+
+meta_dat
+
+umi_dat_long <- umi_dat %>% 
+  pivot_longer(-GENEID, names_to = "library_id", values_to = "umi_count")
+
+read_dat_long <- read_dat %>% 
+  pivot_longer(-GENEID, names_to = "library_id", values_to = "read_count")
+
+umi_read_dat <- umi_dat_long %>% 
+  left_join(read_dat_long, by = c("GENEID", "library_id")) %>% 
+  rename(gene_sequence_name = GENEID)
+```
+
+# Quality control
+
+## Is hlh-1 knocked out?
+
+```{r echo=FALSE, message=FALSE, fig.width=8, fig.height=6}
+wormbase.df <- readr::read_csv("gene_annotation_wormbase.csv")
+
+read_dat_long %>% 
+  left_join(wormbase.df, by = c("GENEID" = "wormbase_gseq")) %>% 
+  dplyr::filter(external_gene_id == "hlh-1") %>% 
+  left_join(meta_dat, by = "library_id") %>% 
+  mutate(genotype = factor(genotype, levels = c("wt", "lox"))) %>%  
+  ggplot(aes(genotype, read_count)) + 
+  geom_point(aes(color = time_point), size = 3) + 
+  scale_color_brewer("", palette = "Dark2") + 
+  labs(x = NULL, y = "Unnormalized Read Count") + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(size = 12), 
+        legend.position = c(0.1,0.9), 
+        legend.background = element_rect(fill = "transparent"))
+```
+
+Similar to what I observed in swsn-1 "KO" study, the hlh-1 "KO" samples still have large read counts (larger than wild type). 
+
+## Are UMIs in this project sufficient for labelling all mRNAs?
+
+In this project,  I was told that UMIs are stretches of 8 random nucleotides integrated into a sequencing primer and serve as a random barcode for each mRNA molecule.
+Since $4^8 = 65536$, this 8-nucleotide UMI capable of distinguishing up to 65536 molecules. 
+
+```{r echo=FALSE, fig.width=12, fig.height=12}
+umi_read_dat %>% 
+  dplyr::filter(read_count != 0) %>% 
+  ggplot(aes(log10(read_count), umi_count)) + 
+  geom_point(color = "steelblue", alpha = 0.5) + 
+  facet_wrap(~library_id) + 
+  labs(x = "log10(read count)", y = "UMI count") + 
+  theme_bw()
+```
+
+Wait!? I clearly see UMI count is approaching to a maximum value but that value is around 4000, which is much smaller than 65536, the number of mRNAs that 8-nucleotide UMIs can distinct. 
+
+## Is it really true that this project used 8-nucleotide UMI?
+
+First, I found the maximum UMI count in each RNA sample.
+
+```{r echo=FALSE, message=FALSE}
+# the maximum UMI count in each RNA sample
+umi_dat_long %>% 
+  group_by(library_id) %>% 
+  summarize(max_umi_count = max(umi_count))
+```
+
+Apparently, the maximum UMI count is about ~4092. 
+Because $4^6 = 4096$, now I am sure that this project used 6-nucleotide UMIs instead of 8!
+Like what happend to Molly's swsn-1 experiment, UMI strategy does not work because these 6-nucleotide UMIs are **NOT substantially larger** than mRNAs. 
+So we again we have to work with read counts. 
+
+## Sequencing depth
+
+```{r echo=FALSE, message=FALSE, fig.width=10, fig.height=8}
+read_dat_long %>% 
+  group_by(library_id) %>% 
+  summarize(tot_read_count = sum(read_count)) %>% 
+  ggplot(aes(library_id, tot_read_count)) + 
+  geom_col() + 
+  labs(x = NULL, y = "Total Read Counts") + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+Apparently, there is library construction issue for sample "1-10_hlh-1_lox_12B". 
+This sample has to be removed from the rest of analysis. 
+
+```{r}
+read_dat_filtered_long <- read_dat_long %>% 
+  dplyr::filter(library_id != "1-10_hlh-1_lox_12B")
+```
+
+## Input material
+
+If spike-in RNAs account for a large proportion of total UMIs, then the input material of sample RNAs is low. Here we can see there is no such issue. 
+
+```{r echo=FALSE, message=FALSE, fig.width=10, fig.height=8}
+read_dat_filtered_long %>% 
+  mutate(what_rna = ifelse(str_detect(GENEID, "ERCC"), "spike-in", "endogenous")) %>% 
+  group_by(library_id, what_rna) %>% 
+  summarize(tot_read_counts = sum(read_count)) %>% 
+  spread(what_rna, tot_read_counts) %>% 
+  mutate(tot_reads = endogenous + `spike-in`, 
+         perc_ercc = `spike-in`/tot_reads * 100) %>% 
+  left_join(meta_dat, by = "library_id") %>% 
+  ggplot(aes(tot_reads, perc_ercc)) + 
+  geom_point(aes(color = group_id), size = 3) + 
+  ggrepel::geom_text_repel(aes(label = library_id)) + 
+  scale_color_brewer("", palette = "Dark2") + 
+  labs(x = "Total Read Counts", y = "Spike-in Reads (%)") + 
+  theme_bw() + 
+  theme(legend.position = c(0.1,0.9), 
+        legend.background = element_rect(fill = "transparent"))
+```
+
+## Amplification efficiency
+
+The $log2\frac{\text{Read count}}{\text{UMI count}}$ represents PCR amplification ratio. 
+
+```{r echo=FALSE, message=FALSE, fig.width=10, fig.height=8}
+read_dat_filtered_long %>% 
+  left_join(umi_dat_long, by = c("GENEID", "library_id")) %>% 
+  dplyr::filter(read_count != 0) %>% 
+  mutate(pcr_amp_ratio = log2(read_count/umi_count)) %>% 
+  left_join(meta_dat, by = "library_id") %>% 
+  ggplot(aes(library_id, pcr_amp_ratio)) + 
+  geom_boxplot(aes(fill = group_id)) + 
+  scale_fill_brewer("", palette = "Dark2") + 
+  labs(x = NULL, y = "log2(read count/UMI count)") + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 90), 
+        legend.position = c(0.9,0.9), 
+        legend.background = element_rect(fill = "transparent"))
+```
+
+In general, these samples showed comparable amplification efficiency, even though "1-10_SV2104_12B" showed relatively lower amplification. 
+
+```{r echo=FALSE, message=FALSE}
+# genes that have zero UMI counts in all samples
+gene_zero_read_in_all_samples <- read_dat_filtered_long %>% 
+  group_by(GENEID) %>% 
+  summarize(perc_of_zero = mean(read_count == 0)) %>% 
+  dplyr::filter(perc_of_zero == 1) %>% 
+  dplyr::pull(GENEID)
+
+unnormalized_read_dat_final <- read_dat_filtered_long %>% 
+  left_join(meta_dat, by = "library_id") %>% 
+  rename(gene_sequence_name = GENEID) %>% 
+  dplyr::filter(!gene_sequence_name %in% gene_zero_read_in_all_samples)
+
+#readr::write_csv(unnormalized_read_dat_final, "Tessa_unnormalized_read_counts.csv")
+```
+
+# Normalization
+
+## MD plot of unnormalized UMI count data suggests the need for normalization
+
+To demonstrate the need for normalization, I take the two replicates from wild type at hour 14 as an example. 
+
+```{r echo=FALSE, fig.width=8, fig.height=8}
+unnormalized_read_dat_final %>% 
+  dplyr::filter(group_id == "wt.Hour14") %>% 
+  dplyr::select(gene_sequence_name, sample_id, read_count) %>% 
+  spread(sample_id, read_count) %>% 
+  dplyr::select(-rep3) %>% 
+  dplyr::filter(rep1 != 0, rep2 != 0) %>% 
+  mutate(M = 0.5 * (log2(rep1) + log2(rep2)), 
+         D = log2(rep1) - log2(rep2), 
+         what_rna = ifelse(str_detect(gene_sequence_name, "ERCC"), "spike-in", "endogenous")) %>% 
+  ggplot(aes(M, D)) + 
+  geom_point(alpha = 0.5, aes(color = what_rna)) + 
+  scale_color_manual("", values = c("steelblue", "red")) + 
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") + 
+  labs(title = "Wild type at Hour 14, rep1 vs rep2", 
+       x = "Average log2(read count)", y = "log2-fold-change") + 
+  theme_bw() + 
+  theme(legend.position = c(0.9, 0.1))
+```
+
+Obviously, rep1 has many genes including the spike ins that have larger raw counts than rep2. 
+
+## Principal component analysis of unnormalized UMI count data
+
+```{r include=FALSE}
+unnormalized_read_dat_mat <- unnormalized_read_dat_final %>% 
+  dplyr::select(gene_sequence_name, library_id, read_count) %>% 
+  spread(library_id, read_count) %>% 
+  column_to_rownames("gene_sequence_name") %>% 
+  as.matrix()
+```
+
+```{r include=FALSE}
+sketch_PCA <- function(cnt.mat, matrix = TRUE) {
+  if (matrix == TRUE) {
+    Y <- log(cnt.mat + 1)
+    # for prcomp, rows must be samples and columns are genes
+    res.pca <- prcomp(t(Y), center = TRUE)
+
+    # principal components
+    res.pca.df <- res.pca$x %>% 
+      as.data.frame() %>% 
+      rownames_to_column("library_id") %>% 
+      as_tibble() %>% 
+      left_join(meta_dat, by = "library_id")
+
+    plotList <- list()
+
+    plotList[[1]] <- ggally_text("PC1", color = "black") + theme_void()
+
+    plotList[[2]] <- ggplot(res.pca.df, aes(PC2, PC1)) + 
+      geom_point(aes(color = time_point, shape = genotype), size = 3) + 
+      scale_color_brewer("", palette = "Dark2")
+
+    plotList[[3]] <- ggplot(res.pca.df, aes(PC3, PC1)) + 
+      geom_point(aes(color = time_point, shape = genotype), size = 3) + 
+      scale_color_brewer("", palette = "Dark2")
+  
+    plotList[[4]] <- ggplot(res.pca.df, aes(PC1, PC2)) + 
+      geom_point(aes(color = time_point, shape = genotype), size = 3) + 
+      scale_color_brewer("", palette = "Dark2")
+  
+    plotList[[5]] <- ggally_text("PC2", color = "black") + theme_void()
+  
+    plotList[[6]] <- ggplot(res.pca.df, aes(PC3, PC2)) + 
+      geom_point(aes(color = time_point, shape = genotype), size = 3) + 
+      scale_color_brewer("", palette = "Dark2")
+  
+    plotList[[7]] <- ggplot(res.pca.df, aes(PC1, PC3)) + 
+      geom_point(aes(color = time_point, shape = genotype), size = 3) + 
+      scale_color_brewer("", palette = "Dark2")
+  
+    plotList[[8]] <- ggplot(res.pca.df, aes(PC2, PC3)) + 
+      geom_point(aes(color = time_point, shape = genotype), size = 3) + 
+      scale_color_brewer("", palette = "Dark2")
+  
+    plotList[[9]] <- ggally_text("PC3", color = "black") + theme_void()
+  
+    ggmatrix(plotList, nrow = 3, ncol = 3, byrow = TRUE, legend = 2) + 
+      theme(legend.position = "bottom")
+  }
+    else {
+      Y <- log(cnt.mat + 1)
+  
+      # for prcomp, rows must be samples and columns are genes
+      res.pca <- prcomp(t(Y), center = TRUE)
+      
+      # principal components
+      res.pca.df <- res.pca$x %>% 
+        as.data.frame() %>% 
+        rownames_to_column("library_id") %>% 
+        as_tibble() %>% 
+        left_join(meta_dat, by = "library_id")
+      
+      ggplot(res.pca.df, aes(PC1, PC2)) + 
+        geom_point(aes(color = time_point, shape = genotype), size = 3) + 
+        ggrepel::geom_text_repel(aes(label = library_id)) + 
+        scale_color_brewer("", palette = "Dark2") + 
+        theme_bw()
+    }
+}
+```
+
+```{r echo=FALSE, fig.width=12, fig.height=12}
+sketch_PCA(unnormalized_read_dat_mat, matrix = TRUE)
+```
+
+My first impression is that there is a wild type sample from Hour 14 had very different gene expression pattern compared to the rest of samples. 
+This is also the driving force of the first principal component. 
+The second principal component seems to be driven by time point, 
+However, there is another wild type sample at hour 12 clustering together with other wild type hour 14 samples. 
+
+```{r echo=FALSE, fig.width=8, fig.height=8}
+sketch_PCA(unnormalized_read_dat_mat, matrix = FALSE) + 
+  theme(legend.position = c(0.1, 0.8), 
+        legend.background = element_rect(fill = "transparent"))
+```
+
+I find that it is the sample "01-10_SV2104_14A" (a wild type sample at hour 14) which is very different from the rest samples. 
+
+Furthermore, it is the sample "1-10_SV2104_12C" (another wild type sample at hour 12), which clustered together with other samples derived from hour 14. 
+To not confuse the downstream analysis, I decided to exclude "1-10_SV2104_12C". 
+
+# After removal of "confusing" sample, it looks
+
+```{r echo=FALSE, fig.width=8, fig.height=8}
+unnormalized_read_dat_mat <- unnormalized_read_dat_mat[, colnames(unnormalized_read_dat_mat) != "1-10_SV2104_12C"]
+
+sketch_PCA(unnormalized_read_dat_mat, matrix = FALSE) + 
+  theme(legend.position = c(0.1, 0.8), 
+        legend.background = element_rect(fill = "transparent"))
+```
+
+## Why "01-10_SV2104_14A" is so different from the rest of the samples?
+
+I found that "01-10_SV2104_14A" has the smallest percentage of genes that have have zero read count among all the RNA samples, and meanwhile it has largest sequencing depth. 
+
+```{r echo=FALSE, message=FALSE, fig.width=10, fig.height=8}
+unnormalized_read_dat_final %>% 
+  group_by(library_id) %>% 
+  summarize(perc_zero_count = mean(read_count == 0) * 100) %>% 
+  ggplot(aes(library_id, perc_zero_count)) + 
+  geom_col() + 
+  labs(x = NULL, y = "Percentage of Zero Read Count") + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+These features likely explain why it is distinct from the rest of samples. 
+Anyway, I do not find any reason to exclude this sample from the downstream analysis. 
+
+## Use RUVr for normalization
+
+For RUVr normalization I don't need ERCC spike ins.
+RIT genes have no gene annotations and will not be used in differential expression analysis. 
+In addition, if a gene has zero count in more than three samples, that gene will also be removed because it contains too many zeros (30%).
+In short, RUVr first fits a negative binomial regression model with the known factors (time point and genotype), and then performs SVD of the residual matrix. 
+The first unwanted factor corresponds to the first eigenvector. 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+meta_dat_final <- unnormalized_read_dat_final %>% 
+  dplyr::filter(library_id != "1-10_SV2104_12C") %>% 
+  dplyr::select(library_id, genotype, time_point, sample_id, group_id) %>% 
+  distinct() %>% 
+  arrange(library_id)
+
+# check the sample ids are matched in expression table and meta data
+identical(colnames(unnormalized_read_dat_mat), meta_dat_final$library_id)
+
+# filter out the ERCC and RIT genes as well as genes with zero count in most of the samples
+all_genes <- row.names(unnormalized_read_dat_mat)
+ercc_rit_genes <- all_genes[str_detect(all_genes, "(ERCC)|(RIT)")]
+genes_with_too_many_zeros <- all_genes[rowSums(unnormalized_read_dat_mat == 0) >= 3]
+
+unnormalized_read_dat_mat_filtered <- unnormalized_read_dat_mat[!row.names(unnormalized_read_dat_mat) %in% c(ercc_rit_genes, genes_with_too_many_zeros),]
+
+#my_design0 <- model.matrix(~0 + group_id, data = meta_dat_final)
+#colnames(my_design0) <- str_replace(colnames(my_design0), "group_id", "")
+
+my_offsets <- matrix(0, nrow = nrow(unnormalized_read_dat_mat_filtered), ncol = ncol(unnormalized_read_dat_mat_filtered))
+
+#my_dispersions0 <- estimateDisp(unnormalized_read_dat_mat_filtered, design = my_design0, #offset = my_offsets)
+#my_fit0 <- glmFit(unnormalized_read_dat_mat_filtered, design = my_design0, dispersion = #my_dispersions0$tagwise.dispersion, offset = my_offsets)
+#my_res0 <- residuals(my_fit0, unnormalized_read_dat_mat_filtered, type = "deviance")
+#ruv_out <- RUVSeq::RUVr(unnormalized_read_dat_mat_filtered, cIdx = #row.names(unnormalized_read_dat_mat_filtered), k = 1, residuals = my_res0)
+
+#W_hat.df <- ruv_out$W %>% 
+#  as.data.frame()
+
+#row.names(W_hat.df) <- colnames(unnormalized_read_dat_mat_filtered)
+
+#W_hat.df <- W_hat.df %>% 
+#  rownames_to_column("library_id") %>% 
+#  as_tibble()
+
+#readr::write_csv(W_hat.df, "Tessa_unwanted_factors.csv")
+W_hat.df <- readr::read_csv("Tessa_unwanted_factors.csv")
+
+# Normalized read count 
+#normalized_read_count_mat <- ruv_out$normalizedCounts
+
+#normalized_read_count_df <- normalized_read_count_mat %>% 
+#  as.data.frame() %>% 
+#  rownames_to_column("gene_sequence_name") %>% 
+#  as_tibble() %>% 
+#  pivot_longer(-gene_sequence_name, names_to = "library_id", values_to = "read_count") #%>% 
+#  left_join(meta_dat_final, by = "library_id")
+
+#readr::write_csv(normalized_read_count_df, "Tessa_normalized_after_qc_read_count_data.csv")
+
+normalized_read_count_df <- readr::read_csv("Tessa_normalized_after_qc_read_count_data.csv")
+
+normalized_read_count_mat <- normalized_read_count_df %>% 
+  dplyr::select(gene_sequence_name, library_id, read_count) %>% 
+  spread(library_id, read_count) %>% 
+  tibble::column_to_rownames("gene_sequence_name") %>% 
+  as.matrix()
+```
+
+### The first unwanted factor (W_1) mainly captured variation in sequencing depth. 
+
+```{r echo=FALSE, fig.width=7, fig.height=7}
+unnormalized_read_dat_final %>% 
+  group_by(library_id) %>% 
+  summarize(tot_read_counts = sum(read_count)) %>% 
+  right_join(W_hat.df, by = "library_id") %>% 
+  ggplot(aes(W_1, log10(tot_read_counts))) + 
+  geom_point(size = 3) + 
+  labs(x = "log10(sequencing depth)", y = "Unwanted factor 1") + 
+  theme_bw()
+```
+
+### MD plot of RUVr normalized read counts
+
+Using the same two replicate samples (wild type and hour 14), I evaluated the performance of normalization. 
+
+```{r echo=FALSE, fig.width=8, fig.height=8}
+MD_dat <- normalized_read_count_df %>% 
+  dplyr::filter(group_id == "wt.Hour14") %>% 
+  dplyr::select(gene_sequence_name, sample_id, read_count) %>% 
+  spread(sample_id, read_count) %>% 
+  dplyr::select(-rep3) %>% 
+  dplyr::filter(rep1 != 0, rep2 != 0) %>% 
+  mutate(M = 0.5 * (log2(rep1) + log2(rep2)), 
+         D = log2(rep1) - log2(rep2), 
+         what_rna = ifelse(str_detect(gene_sequence_name, "ERCC"), "spike-in", "endogenous"))
+
+ggplot(MD_dat, aes(M, D)) + 
+  geom_point(data = dplyr::filter(MD_dat, what_rna == "endogenous"), color = "steelblue", alpha = 0.3) + 
+  geom_point(data = dplyr::filter(MD_dat, what_rna == "spike-in"), color = "red") + 
+  scale_color_manual("", values = c("black", "red")) + 
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") + 
+  labs(title = "Wild type at Hour 14, rep1 vs rep2", 
+       x = "Average log2(read count)", y = "log2-fold-change") + 
+  theme_bw() + 
+  theme(legend.position = c(0.9, 0.1))
+```
+
+Better than before, but still there are many genes having larger counts in rep1 than rep2. I thought about possibility of mislabeling samples, but I don't find evidence yet.  
+
+### The scatterplot matrix of first three principal components after RUVr normalization (log scale, centered)
+
+```{r echo=FALSE, fig.width=8, fig.height=8}
+sketch_PCA(normalized_read_count_mat[rowSums(normalized_read_count_mat)>0,], matrix = FALSE)
+```
+
+Now in the PCA plot, we can see that PC1 is driven by genotype and PC2 is driven by time point. 
+
+## Differential expression analysis
+
+With this data set, we could answer following questions:
+
+1. Which genes responded to hlh-1 "KO" at hour 12 and hour 14, respectively?
+2. Which genes shifted expression levels from hour 12 to hour 14, regardless of genotype?
+
+```{r}
+W_1 <- W_hat.df$W_1
+
+my_design <- model.matrix(~0 + group_id + W_1, data = meta_dat_final)
+
+colnames(my_design) <- str_replace(colnames(my_design), "group_id", "")
+
+# gene-specific dispersion
+my_dispersions <- estimateDisp(unnormalized_read_dat_mat_filtered, design = my_design, offset = my_offsets)
+
+# negative binomial regression
+my_fit <- glmFit(unnormalized_read_dat_mat_filtered, design = my_design, dispersion = my_dispersions$tagwise.dispersion, offset = my_offsets)
+
+my_contrasts <- makeContrasts(
+  h12.loxVSwt = lox.Hour12 - wt.Hour12, 
+  h14.loxVSwt = lox.Hour14 - wt.Hour14, 
+  h12VSh14 = (wt.Hour14 + lox.Hour14)/2 - (wt.Hour12 + lox.Hour12)/2,
+  levels = my_design
+)
+```
+
+# Results
+
+```{r include=FALSE}
+tidy_togTags <- function(lrt, wormbase.df) {
+  topTags(lrt, n = nrow(unnormalized_read_dat_mat_filtered), adjust.method = "fdr") %>% 
+  as.data.frame() %>% 
+  rownames_to_column("wormbase_gseq") %>% 
+  as_tibble() %>% 
+  left_join(wormbase.df, by = "wormbase_gseq")
+}
+```
+
+## Which genes responded to hlh-1 "KO" at hour 12 and 14, respectively?
+
+```{r include=FALSE}
+gene_stats_h12_lox_vs_wt <- glmLRT(my_fit, contrast = my_contrasts[,"h12.loxVSwt"]) %>% 
+  tidy_togTags(wormbase.df) %>% 
+  mutate(time_point = "Hour12")
+
+gene_stats_h14_lox_vs_wt <- glmLRT(my_fit, contrast = my_contrasts[,"h14.loxVSwt"]) %>% 
+  tidy_togTags(wormbase.df) %>% 
+  mutate(time_point = "Hour14")
+
+gene_stats_lox_vs_wt <- gene_stats_h12_lox_vs_wt %>% 
+  bind_rows(gene_stats_h14_lox_vs_wt)
+
+#readr::write_csv(gene_stats_lox_vs_wt, "Tessa_gene_stats_lox_vs_wt.csv")
+```
+
+```{r echo=FALSE, fig.width=10, fig.height=6, message=FALSE}
+#gene_stats_lox_vs_wt <- readr::read_csv("Tessa_gene_stats_lox_vs_wt.csv")
+
+sig_genes <- gene_stats_lox_vs_wt %>% 
+  dplyr::filter(FDR < 0.05)
+
+sig_genes_to_be_annotated <- sig_genes %>% 
+  group_by(time_point) %>% 
+  top_n(-FDR, n = 10)
+
+ggplot(gene_stats_lox_vs_wt, aes(logFC, -log10(PValue))) + 
+  geom_point(alpha = 0.1) + 
+  geom_point(data = sig_genes, color = "red", alpha = 0.2) + 
+  ggrepel::geom_text_repel(data = sig_genes_to_be_annotated, aes(label = external_gene_id)) + 
+  theme_bw() + 
+  facet_wrap(~time_point, ncol = 2, scale = "free")
+```
+
+## Which genes shifted their expression from hour 12 to hour 14 regardless of genotypes?
+
+```{r echo=FALSE, message=FALSE, fig.width=10, fig.height=10}
+gene_stats_h12_vs_h14 <- glmLRT(my_fit, contrast = my_contrasts[,"h12VSh14"]) %>% 
+  tidy_togTags(wormbase.df) 
+
+sig_genes <- gene_stats_h12_vs_h14 %>% 
+  dplyr::filter(FDR < 0.05)
+
+sig_genes_to_be_annotated <- sig_genes %>% 
+  top_n(-FDR, n = 20)
+
+ggplot(gene_stats_h12_vs_h14, aes(logFC, -log10(PValue))) + 
+  geom_point(alpha = 0.1) + 
+  geom_point(data = sig_genes, color = "red", alpha = 0.2) + 
+  ggrepel::geom_text_repel(data = sig_genes_to_be_annotated, aes(label = external_gene_id), size = 5) + 
+  theme_bw()
+```
+
+
+## Genes of interest for ODE model development
+
+For the purpose of building ODE models, I am particularly interested in genes such as mls-2, hlh-1 and cdk-4 etc. 
+Here I showed how hlh-1 "KO" will affect these genes at different time point. 
+
+```{r echo=FALSE, fig.width=12, fig.height=12}
+target_genes <- wormbase.df %>% 
+  dplyr::filter(external_gene_id %in% c("mls-2", "hlh-1", "cdk-4", "cyd-1", "cki-1", "unc-15"))
+
+normalized_read_count_df %>% 
+  inner_join(target_genes, by = c("gene_sequence_name" = "wormbase_gseq")) %>% 
+  mutate(external_gene_id = factor(external_gene_id, levels = c("mls-2", "hlh-1", "cdk-4", "cyd-1", "cki-1", "unc-15")), 
+         genotype = factor(genotype, levels = c("wt", "lox"))) %>% 
+  ggplot(aes(genotype, log(read_count + 1))) + 
+  geom_point(aes(color = genotype), size = 2, position = position_jitter(width = 0.2)) + 
+  scale_color_brewer("", palette = "Set2") + 
+  facet_grid(external_gene_id~time_point, scales = "free") + 
+  labs(x = NULL, y = "log(Normalized Read Counts + 1)") + 
+  theme_bw() + 
+  theme(legend.position = "none")
+```
+
+### mls-2
+
+```{r echo=FALSE}
+gene_stats_lox_vs_wt %>% 
+  dplyr::filter(external_gene_id == "mls-2") %>% 
+  knitr::kable()
+```
+
+### hlh-1
+
+```{r echo=FALSE}
+gene_stats_lox_vs_wt %>% 
+  dplyr::filter(external_gene_id == "hlh-1") %>% 
+  knitr::kable()
+```
+
+## Positive cell regulators
+
+cdk-4 and cyd-1 represent positive cell cycle regulators. 
+
+### cdk-4
+
+```{r echo=FALSE}
+gene_stats_lox_vs_wt %>% 
+  dplyr::filter(external_gene_id == "cdk-4") %>% 
+  knitr::kable()
+```
+
+### cyd-1
+
+```{r echo=FALSE}
+gene_stats_lox_vs_wt %>% 
+  dplyr::filter(external_gene_id == "cyd-1") %>% 
+  knitr::kable()
+```
+
+## Negative cell cycle regulator
+
+### cki-1
+
+cki-1 was down-regulated in swsn-1 "KO" group at hour 12, and then cki-1 was up-regulated in swsn-1 "KO" group at hour 14. 
+cki-1 was up-regulated in swsn-1 "KO" group at hour 20. 
+
+```{r echo=FALSE}
+gene_stats_lox_vs_wt %>% 
+  dplyr::filter(external_gene_id == "cki-1") %>% 
+  knitr::kable()
+```
+
+## Differentiation marker
+
+### unc-15
+
+```{r echo=FALSE}
+gene_stats_lox_vs_wt %>% 
+  dplyr::filter(external_gene_id == "unc-15") %>% 
+  knitr::kable()
+```
+
+
+
