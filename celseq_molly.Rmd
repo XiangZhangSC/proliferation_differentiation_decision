@@ -1,8 +1,11 @@
 ---
 title: "Gene expression analysis of swsn-1 KO M lineage of *c. elegans*"
 author: "Xiang Zhang"
-date: "Jan 13, 2021"
-output: html_document
+date: "`r format(Sys.Date(), '%d %B, %Y')`"
+output: 
+  html_document: 
+    toc: true
+    toc_float: true
 editor_options: 
   chunk_output_type: console
 bibliography: /home/xiang/Documents/Bibliography/c_elegans.bib
@@ -434,7 +437,9 @@ meta_dat <- read_count_data_final %>%
 The read count data we are going to use for differential expression analysis contain `r nrow(read_count_mat)` genes and `r ncol(read_count_mat)` samples. 
 I saved the unnormalized read count data as a CSV file. 
 
-## Normalization
+# Normalization
+
+## Before normalization
 
 ### Sequencing depth normalization is needed for this project
 
@@ -499,7 +504,7 @@ Apparently, rep1 had smaller count compared to rep3, indicating need for normali
 sketch_PCA <- function(cnt.mat) {
   Y <- log(cnt.mat + 1)
   # for prcomp, rows must be samples and columns are genes
-  res.pca <- prcomp(t(Y), scale = TRUE)
+  res.pca <- prcomp(t(Y), center = TRUE)
 
   # principal components
   res.pca.df <- res.pca$x %>% 
@@ -642,6 +647,8 @@ W_hat.df %>%
 
 As expected, we can clearly see that the first unwanted factor (W_1) picks up the sequencing depth difference. 
 I could not find that the second unwanted factor (W_2) was correlated with either PCR amplification ratio nor percentage of zero count. 
+
+## After normalization
 
 ### MD plot showed that normalization worked
 
@@ -845,10 +852,6 @@ gene_stats_lox_vs_wt %>%
   knitr::kable()
 ```
 
-## Positive cell regulators
-
-cdk-4 and cyd-1 represent positive cell cycle regulators. 
-
 ### cdk-4
 
 cdk-4 was up regulated in swsn-1 "KO" group at hour 14, 16, 18 and 20. 
@@ -869,11 +872,9 @@ gene_stats_lox_vs_wt %>%
   knitr::kable()
 ```
 
-## Negative cell cycle regulator
+### cki-1
 
 cki-1 represents a negative cell cycle regulator.
-
-### cki-1
 
 cki-1 was down-regulated in swsn-1 "KO" group at hour 12, and then cki-1 was up-regulated in swsn-1 "KO" group at hour 14. 
 cki-1 was up-regulated in swsn-1 "KO" group at hour 20. 
@@ -883,8 +884,6 @@ gene_stats_lox_vs_wt %>%
   dplyr::filter(external_gene_id == "cki-1") %>% 
   knitr::kable()
 ```
-
-## Differentiation marker
 
 ### unc-15
 
