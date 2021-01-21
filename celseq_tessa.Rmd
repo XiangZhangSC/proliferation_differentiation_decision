@@ -489,6 +489,7 @@ my_contrasts <- makeContrasts(
   h12.loxVSwt = lox.Hour12 - wt.Hour12, 
   h14.loxVSwt = lox.Hour14 - wt.Hour14, 
   h12VSh14 = (wt.Hour14 + lox.Hour14)/2 - (wt.Hour12 + lox.Hour12)/2,
+  wt.h14VSh12 = wt.Hour14 - wt.Hour12, 
   levels = my_design
 )
 ```
@@ -519,7 +520,9 @@ gene_stats_h14_lox_vs_wt <- glmLRT(my_fit, contrast = my_contrasts[,"h14.loxVSwt
 gene_stats_lox_vs_wt <- gene_stats_h12_lox_vs_wt %>% 
   bind_rows(gene_stats_h14_lox_vs_wt)
 
-#readr::write_csv(gene_stats_lox_vs_wt, "Tessa_gene_stats_lox_vs_wt.csv")
+#readr::write_csv(gene_stats_h12_lox_vs_wt, "./results/Tessa_gene_stats_lox_vs_wt_h12.csv")
+#readr::write_csv(gene_stats_h14_lox_vs_wt, "./results/Tessa_gene_stats_lox_vs_wt_h14.csv")
+#readr::write_csv(gene_stats_h14_lox_vs_wt, "./results/Tessa_gene_stats_h14_vs_h12_wt.csv")
 ```
 
 ```{r echo=FALSE, fig.width=10, fig.height=6, message=FALSE}
