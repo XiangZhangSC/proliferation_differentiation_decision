@@ -5,7 +5,8 @@ date: "`r format(Sys.Date(), '%d %B, %Y')`"
 output: 
   html_document: 
     toc: true
-    toc_float: true
+    toc_float: 
+      collapsed: true
 editor_options: 
   chunk_output_type: console
 bibliography: /home/xiang/Documents/Bibliography/c_elegans.bib
@@ -714,7 +715,7 @@ I observed massive gene expression changes due to swsn-1 "KO", especially in the
 ```
 
 ```{r echo=FALSE, fig.width=12, fig.height=24, message=FALSE}
-gene_stats_lox_vs_wt <- readr::read_csv("Molly_gene_stats_lox_vs_wt.csv")
+gene_stats_lox_vs_wt <- readr::read_csv("results/Molly_gene_stats_lox_vs_wt.csv")
 
 sig_genes <- gene_stats_lox_vs_wt %>% 
   dplyr::filter(FDR < 0.01)
@@ -740,11 +741,11 @@ We do not know whether the gene expression changes from one time point to anothe
 
 ```{r echo=FALSE, fig.width=12, fig.height=12}
 target_genes <- annotation.df %>% 
-  dplyr::filter(external_gene_id %in% c("mls-2", "hlh-1", "cdk-4", "cyd-1", "cki-1", "unc-15"))
+  dplyr::filter(external_gene_id %in% c("mls-2", "hlh-1", "cdk-4", "cyd-1", "cki-1", "unc-15", "fos-1"))
 
 normalized_read_count_df %>% 
   inner_join(target_genes, by = c("gene_sequence_name" = "wormbase_gseq")) %>% 
-  mutate(external_gene_id = factor(external_gene_id, levels = c("mls-2", "hlh-1", "cdk-4", "cyd-1", "cki-1", "unc-15")), 
+  mutate(external_gene_id = factor(external_gene_id, levels = c("mls-2", "hlh-1", "cdk-4", "cyd-1", "cki-1", "unc-15", "fos-1")), 
          genotype = factor(genotype, levels = c("wt", "lox"))) %>% 
   ggplot(aes(genotype, log(read_count + 1))) + 
   geom_point(aes(color = genotype), size = 2, position = position_jitter(width = 0.2)) + 
@@ -821,6 +822,80 @@ gene_stats_lox_vs_wt %>%
   knitr::kable()
 ```
 
+### fos-1
+
+```{r echo=FALSE}
+gene_stats_lox_vs_wt %>% 
+  dplyr::filter(external_gene_id == "fos-1") %>% 
+  knitr::kable()
+```
+
+## Use relative expression to track qualitative gene expression changes over time
+
+```{r include=FALSE, message=FALSE}
+spikein_present_all_samples <- read_count_data_final %>% 
+  dplyr::filter(str_detect(gene_sequence_name, 'ERCC')) %>% 
+  group_by(gene_sequence_name) %>% 
+  summarize(with_zero_read = sum(read_count == 0L)) %>% 
+  dplyr::filter(with_zero_read == 0L) %>% 
+  dplyr::pull(gene_sequence_name)
+```
+
+There are `r length(spikein_present_all_samples)` ERCC spike-ins present in all samples. 
+
+```{r echo=FALSE, fig.width=12,fig.height=12}
+read_count_data_filtered %>% 
+  dplyr::filter(gene_sequence_name %in% spikein_present_all_samples, 
+                !library_id %in% "lox_hour10_rep3") %>% 
+  ggplot(aes(time_point, log2(read_count))) + 
+  geom_point(size = 3, alpha = 0.5) + 
+  facet_wrap(~gene_sequence_name, scales = "free") + 
+  labs(x = NULL, y = "log2(read count)") + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+Apparently, the read counts of spike-in "ERCC-00098" decreased over time. 
+However, we know that this trend must be artificial, and can be driven by factors such as sequencing depth and batch effect. 
+If I use this gene as reference ($S$), then I can track the relative gene expression changes over time. 
+
+$$\text{Relative Expression of }X_{t} = log2(\frac{X_{t}}{S_{t}})$$
+$$
+\begin{align}
+RE(X_{t1}) - RE(X_{t2}) &= log2(\frac{X_{t1}}{S_{t1}}) - log2(\frac{X_{t2}}{S_{t2}}) \\
+                        &= log2(\frac{X_{t1}}{X_{t2}}) - log2(\frac{S_{t1}}{S_{t2}})
+\end{align}
+$$
+
+Here, I assumed that $log2(\frac{S_{t1}}{S_{t2}})$ contains artificial time effects due to factors such as sequencing depth and batch effects. 
+
+
+```{r echo=FALSE, message=FALSE, fig.width=10, fig.height=12}
+ercc98 <- read_count_data_final %>% 
+  dplyr::filter(gene_sequence_name == "ERCC-00098") %>% 
+  rename(ercc98_read_count = read_count) %>% 
+  dplyr::select(-gene_sequence_name)
+
+model_genes_expression <- read_count_data_final %>% 
+  inner_join(target_genes, by = c("gene_sequence_name" = "wormbase_gseq")) %>% 
+  left_join(ercc98, by = c("library_id", "genotype", "time_point", "sample_id")) %>% 
+  mutate(relative_expression = log2(read_count) - log2(ercc98_read_count)) %>% 
+  group_by(external_gene_id, time_point, genotype) %>% 
+  summarize(avg_relative_expression = mean(relative_expression)) %>% 
+  mutate(external_gene_id = factor(external_gene_id, levels = c("mls-2", "hlh-1", "fos-1", "cyd-1", "cdk-4", "cki-1", "unc-15")))
+
+#readr::write_csv(model_genes_expression, "model_genes_relative_expression.csv")
+
+ggplot(model_genes_expression, aes(time_point, avg_relative_expression)) + 
+  geom_line(aes(group = genotype, color = genotype), size = 1) + 
+  scale_color_brewer(palette = "Set2") + 
+  facet_wrap(~external_gene_id, ncol = 1, scale = "free_y") + 
+  labs(x = NULL, y = "Relative expression (log2 scale)") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+```
+
+
 # Conclusion
 
 This is a bulk RNAseq data produced by a scRNAseq protocol (CEL-Seq2). 
@@ -830,5 +905,6 @@ Some important things I learned here.
 2. Because UMIs do not work, we have to work with read counts (But read counts suffer from duplicated reads). 
 3. Library construction can be done in batches, but within a batch different time point samples should be randomized. Otherwise, we have no chance to study gene expression changes over time. 
 4. Perturbation of swsn-1 may cause global changes in gene expression. As mentioned previously [@Loven2012], Applying the normalization approaches that assume "most things remain the same, few things change" may lead to misinterpretation. 
+5. Using relative expression levels may allow me to qualitatively track gene expression changes over time. 
 
 # Reference
