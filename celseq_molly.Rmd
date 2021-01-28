@@ -922,6 +922,7 @@ model_genes_expression <- read_count_data_final %>%
 ggplot(model_genes_expression, aes(t_shifted, relative_expression)) + 
   geom_point(size = 2) + 
   geom_smooth(se = FALSE) + 
+  scale_x_continuous(breaks = seq(0, 14, 2), labels = str_c("Hour", seq(6, 20, 2))) + 
   scale_color_brewer(palette = "Set2") + 
   facet_grid(external_gene_id~genotype, scales = "free_y") + 
   labs(x = NULL, y = "Relative expression (log2 scale)") + 
