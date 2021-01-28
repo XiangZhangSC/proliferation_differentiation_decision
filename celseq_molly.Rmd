@@ -887,8 +887,43 @@ pcr_amplif_df %>%
   theme(axis.text.x = element_text(angle = 90))
 ```
 
-Relatively spike-in "ERCC-00113" showed a similar pattern of batch effect showed in the "Batch effect" section. 
+Relatively spike-in "ERCC-00113" showed a similar pattern of batch effect as cdk-4, cki-1, cyd-1 and hlh-1. 
+I also found that "ERCC-00095" approximated well the general batch effect. 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.width=8, fig.height=8}
+pcr_amplif_df %>% 
+  dplyr::filter(gene_sequence_name == "ERCC-00095", 
+                !library_id %in% "lox_hour10_rep3") %>% 
+  mutate(t_shifted = str_sub(time_point, 5, -1), 
+         t_shifted = as.numeric(t_shifted), 
+         t_shifted = t_shifted - 6) %>% 
+  ggplot(aes(t_shifted, pcr_amp)) + 
+  geom_point(size = 3, alpha = 0.5) + 
+  geom_smooth(se = FALSE) + 
+  scale_x_continuous(breaks = seq(0, 14, 2), labels = str_c("Hour", seq(6, 20, 2))) + 
+  labs(x = NULL , y = "log2(read count / UMI count)") + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+"ERCC-00095" contains 0, which will lead to NA relative expression. 
+However, these 0 read counts were in "lox" group, so relative expression will be okay for wild type.
+
+```{r}
+ercc95 <- read_count_data_final %>% 
+  dplyr::filter(gene_sequence_name == "ERCC-00095") %>% 
+  rename(ercc95_read_count = read_count) %>% 
+  dplyr::select(-gene_sequence_name)
+
+ercc95 %>% 
+  dplyr::filter(ercc95_read_count == 0)
+```
+
+Anyway, I cannot find any other spiked-ins that showed similar pattern as fos-1, unc-15 as well as mls-2.
+
 Since the amount of spiked-in material is assumed to be constant across samples, the read counts difference between time points is driven by factors such as sequencing depth and batch effect. 
+When I use "ERCC-00095" this only works for cdk-4, cki-1, cyd-1 and hlh-1. 
+The *BIG* assumption is that "ERCC-00095" affected by batch effect similar to those four genes. 
 If I use this gene as reference ($S$), then I can track the relative gene expression changes over time. 
 
 $$\text{Relative Expression of }X_{t} = log2(\frac{X_{t}}{S_{t}})$$
@@ -902,20 +937,15 @@ $$
 Here, I assumed that $log2(\frac{S_{t1}}{S_{t2}})$ contains artificial time effects due to factors such as sequencing depth and batch effects. 
 
 ```{r echo=FALSE, message=FALSE, fig.width=10, fig.height=12}
-ercc113 <- read_count_data_final %>% 
-  dplyr::filter(gene_sequence_name == "ERCC-00113") %>% 
-  rename(ercc113_read_count = read_count) %>% 
-  dplyr::select(-gene_sequence_name)
-
 model_genes_expression <- read_count_data_final %>% 
   inner_join(target_genes, by = c("gene_sequence_name" = "wormbase_gseq")) %>% 
-  left_join(ercc113, by = c("library_id", "genotype", "time_point", "sample_id")) %>% 
-  mutate(relative_expression = log2(read_count) - log2(ercc113_read_count)) %>% 
-  mutate(external_gene_id = factor(external_gene_id, levels = c("mls-2", "hlh-1", "fos-1", "cyd-1", "cdk-4", "cki-1", "unc-15")), 
+  dplyr::filter(external_gene_id %in% c("hlh-1", "cyd-1", "cdk-4", "cki-1")) %>% 
+  left_join(ercc95, by = c("library_id", "genotype", "time_point", "sample_id")) %>% 
+  mutate(relative_expression = log2(read_count) - log2(ercc95_read_count)) %>% 
+  mutate(external_gene_id = factor(external_gene_id, levels = c("hlh-1", "cyd-1", "cdk-4", "cki-1")), 
          t_shifted = str_sub(time_point, 5, -1), 
          t_shifted = as.numeric(t_shifted), 
-         t_shifted = t_shifted - 6, 
-         relative_expression = ifelse(is.infinite(relative_expression), -10, relative_expression))
+         t_shifted = t_shifted - 6)
 
 #readr::write_csv(model_genes_expression, "model_genes_relative_expression.csv")
 
@@ -927,9 +957,9 @@ ggplot(model_genes_expression, aes(t_shifted, relative_expression)) +
   facet_grid(external_gene_id~genotype, scales = "free_y") + 
   labs(x = NULL, y = "Relative expression (log2 scale)") + 
   theme_bw() + 
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom", 
+        axis.text.x = element_text(angle = 90))
 ```
-
 
 # Conclusion
 
@@ -940,6 +970,6 @@ Some important things I learned here.
 2. Because UMIs do not work, we have to work with read counts (But read counts suffer from duplicated reads). 
 3. Library construction can be done in batches, but within a batch different time point samples should be randomized. Otherwise, we have no chance to study gene expression changes over time. 
 4. Perturbation of swsn-1 may cause global changes in gene expression. As mentioned previously [@Loven2012], Applying the normalization approaches that assume "most things remain the same, few things change" may lead to misinterpretation. 
-5. Using relative expression levels may allow me to qualitatively track gene expression changes over time. 
+5. Using relative expression levels may allow me to qualitatively track some gene expression changes over time. 
 
 # Reference
