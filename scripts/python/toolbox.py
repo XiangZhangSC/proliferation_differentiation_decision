@@ -22,6 +22,32 @@ def binding_prob(x, kd, n):
   """
   return x**n / (kd**n + x**n)
 
+def HillCube(x, kd, n, normalized=False):
+  """
+  function that is implemented in ODEfy
+
+  Parameters
+  ----------
+  x : TYPE
+    DESCRIPTION.
+  kd : TYPE
+    DESCRIPTION.
+  n : TYPE
+    DESCRIPTION.
+  normalized : TYPE, optional
+    DESCRIPTION. The default is False.
+
+  Returns
+  -------
+  TYPE
+    DESCRIPTION.
+
+  """
+  if normalized == True:
+    return binding_prob(x, kd, n) / binding_prob(1, kd, n)
+  else:
+    return binding_prob(x, kd, n)
+
 def tick_time(t_start, t_end, time_step):
   """
   

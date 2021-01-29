@@ -1,33 +1,33 @@
-from toolbox import binding_prob
+from toolbox import HillCube
 
-def rate_hlh1_prod(mls2, myod, max_hlh1_prod, 
+def rate_hlh1_prod(mls2, myod, 
                    k_mls2_hlh1, k_myod_hlh1, 
-                   n_myod_hlh1=2, n_mls2_hlh1=2):
+                   n_myod_hlh1=4.0, n_mls2_hlh1=4.0):
   
-  p_mls2_bound_hlh1 = binding_prob(mls2, k_mls2_hlh1, n_mls2_hlh1)
-  p_myod_bound_hlh1 = binding_prob(myod, k_myod_hlh1, n_myod_hlh1)
+  p_mls2_bound_hlh1 = HillCube(mls2, k_mls2_hlh1, n_mls2_hlh1, normalized=True)
+  p_myod_bound_hlh1 = HillCube(myod, k_myod_hlh1, n_myod_hlh1, normalized=True)
   ## binding MyoD or MLS-2 will induce hlh-1 expression
-  return max_hlh1_prod * (1 - (1 - p_mls2_bound_hlh1) * (1 - p_myod_bound_hlh1))
+  return 1.0 - (1.0 - p_mls2_bound_hlh1) * (1.0 - p_myod_bound_hlh1)
 
-def rate_fos1_prod(myod, max_fos1_prod, k_myod_fos1, n_myod_fos1=2):
+def rate_fos1_prod(myod, k_myod_fos1, n_myod_fos1=4.0):
   
-  p_myod_bound_fos1 = binding_prob(myod, k_myod_fos1, n_myod_fos1)
+  p_myod_bound_fos1 = HillCube(myod, k_myod_fos1, n_myod_fos1, normalized=True)
   
-  return max_fos1_prod * (1 - p_myod_bound_fos1)
+  return 1.0 - p_myod_bound_fos1
 
-def rate_cyd1_prod(fos1, max_cyd1_prod, k_fos1_cyd1, n_fos1_cyd1=2):
+def rate_cyd1_prod(fos1, k_fos1_cyd1, n_fos1_cyd1=4.0):
   
-  p_fos1_bound_cyd1 = binding_prob(fos1, k_fos1_cyd1, n_fos1_cyd1)
+  p_fos1_bound_cyd1 = HillCube(fos1, k_fos1_cyd1, n_fos1_cyd1, normalized=True)
   
-  return max_cyd1_prod * p_fos1_bound_cyd1
+  return p_fos1_bound_cyd1
 
-def rate_cki1_prod(myod, max_cki1_prod, k_myod_cki1, n_myod_cki1=2):
+def rate_cki1_prod(myod, k_myod_cki1, n_myod_cki1=4.0):
   
-  p_myod_bound_cki1 = binding_prob(myod, k_myod_cki1, n_myod_cki1)
+  p_myod_bound_cki1 = HillCube(myod, k_myod_cki1, n_myod_cki1, normalized=True)
   
-  return max_cki1_prod * p_myod_bound_cki1
+  return p_myod_bound_cki1
 
-def rate_proliferation(pos_reg, neg_reg, kd_pos, kd_neg, n_pos=4, n_neg=4):
+def rate_proliferation(pos_reg, neg_reg, kd_pos, kd_neg, n_pos=4.0, n_neg=4.0):
   """
   rate is between 0 and 1 (activity)
 
@@ -53,13 +53,13 @@ def rate_proliferation(pos_reg, neg_reg, kd_pos, kd_neg, n_pos=4, n_neg=4):
   """
   
   # probability of positive cell cycle regulator binding
-  pos_cycle_reg_present = binding_prob(pos_reg, kd_pos, n_pos)
+  pos_cycle_reg_present = HillCube(pos_reg, kd_pos, n_pos, normalized=True)
   
   # probability of negative cell cycle regulaotr unbinding
-  neg_cycle_reg_absent = 1 - binding_prob(neg_reg, kd_neg, n_neg)
+  neg_cycle_reg_absent = 1.0 - HillCube(neg_reg, kd_neg, n_neg, normalized=True)
   
   # AND gate for positive and negative cell cycle regulators
   return pos_cycle_reg_present * neg_cycle_reg_absent
 
-def rate_differentiation(myod, kd, n):
-  return binding_prob(myod, kd, n)
+def rate_differentiation(myod, kd, n=4):
+  return HillCube(myod, kd, n, normalized=True)
