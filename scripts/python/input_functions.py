@@ -27,39 +27,32 @@ def rate_cki1_prod(myod, k_myod_cki1, n_myod_cki1=4.0):
   
   return p_myod_bound_cki1
 
-def rate_proliferation(pos_reg, neg_reg, kd_pos, kd_neg, n_pos=4.0, n_neg=4.0):
-  """
-  rate is between 0 and 1 (activity)
-
-  Parameters
-  ----------
-  pos_reg : TYPE
-    Positive cell cycle regulator quantity
-  kd_pos : TYPE
-    Kd for positive cell cycle regulator
-  n_pos : TYPE
-    Hill coefficient for positive cell cycle regualtor
-  neg_reg : TYPE
-    Negative cell cycle regulator quantity
-  kd_neg : TYPE
-    Kd for negative cell cycle regulator
-  n_neg : TYPE
-    Hill coefficient for negative cell cycle regulator
-
-  Returns
-  -------
-  None.
-
-  """
+def rate_lin35_prod(myod, k_myod_lin35, n_myod_lin35=4.0):
   
+  return HillCube(myod, k_myod_lin35, n_myod_lin35, normalized=True)
+
+def rate_lin35_phos(lin35, cyd1, cki1, km_lin35, kd_cyd1, kd_cki1, n_cyd1=4.0, n_cki1=4.0):
   # probability of positive cell cycle regulator binding
-  pos_cycle_reg_present = HillCube(pos_reg, kd_pos, n_pos, normalized=True)
+  pos_cycle_reg_present = HillCube(cyd1, kd_cyd1, n_cyd1, normalized=True)
   
   # probability of negative cell cycle regulaotr unbinding
-  neg_cycle_reg_absent = 1.0 - HillCube(neg_reg, kd_neg, n_neg, normalized=True)
+  neg_cycle_reg_absent = 1.0 - HillCube(cki1, kd_cki1, n_cki1, normalized=True)
   
-  # AND gate for positive and negative cell cycle regulators
-  return pos_cycle_reg_present * neg_cycle_reg_absent
+  lin35_phos_active = pos_cycle_reg_present * neg_cycle_reg_absent
+  
+  lin35_phos = cyd1 * lin35 / (lin35 + km_lin35)
+  
+  # postive regulaotr ON AND NOT negative regulator
+  return lin35_phos_active * lin35_phos
+
+
+def rate_e2f_prod(lin35, kd_lin35_e2f, n_lin35_e2f=4.0):
+  
+  return 1 - HillCube(lin35, kd_lin35_e2f, n_lin35_e2f, normalized=True)
+
+def rate_proliferation(e2f, kd_e2f, n_e2f=4.0):
+  
+  return HillCube(e2f, kd_e2f, n_e2f, normalized=True)
 
 def rate_differentiation(myod, kd, n=4):
   return HillCube(myod, kd, n, normalized=True)

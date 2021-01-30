@@ -116,7 +116,7 @@ def sketch_ppd(xt, proliferation, differentiation, ts):
 
   """
   
-  fig, ax = plt.subplots(5,1)
+  fig, ax = plt.subplots(7,1)
 
   ax[0].plot(ts, xt[:,0], color='k')
   ax[0].set_xlabel('Hour')
@@ -139,11 +139,21 @@ def sketch_ppd(xt, proliferation, differentiation, ts):
   ax[3].legend()
   ax[3].set_xticks(np.arange(0, 20+2, 2))
   
-  ax[4].plot(ts, proliferation, color='k',linestyle='-', label='proliferation')
-  ax[4].plot(ts, differentiation, color='k', linestyle=':', label='differentiation')
+  ax[4].plot(ts, xt[:,5], color='k')
   ax[4].set_xlabel('Hour')
+  ax[4].set_ylabel('lin-35')
   ax[4].set_xticks(np.arange(0,20+2,2))
-  ax[4].legend()
+  
+  ax[5].plot(ts, xt[:,6], color='k')
+  ax[5].set_xlabel('Hour')
+  ax[5].set_ylabel('E2F')
+  ax[5].set_xticks(np.arange(0,20+2,2))
+  
+  ax[6].plot(ts, proliferation, color='k',linestyle='-', label='proliferation')
+  ax[6].plot(ts, differentiation, color='k', linestyle=':', label='differentiation')
+  ax[6].set_xlabel('Hour')
+  ax[6].set_xticks(np.arange(0,20+2,2))
+  ax[6].legend()
 
   plt.show()
   
