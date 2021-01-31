@@ -19,10 +19,12 @@ def pdd(x,t,
   
   # hlh-1
   tau_hlh1 = tau_hlh1
+  k_myod_hlh1 = k_myod_hlh1 + x[3]
   hlh1_in = rate_hlh1_prod(x[0], x[1], k_mls2_hlh1, k_myod_hlh1)
   
   # fos-1
   tau_fos1 = tau_fos1
+  k_myod_fos1 = k_myod_fos1 + x[3]
   fos1_in = rate_fos1_prod(x[1], k_myod_fos1)
   
   # cyd-1
@@ -31,10 +33,12 @@ def pdd(x,t,
   
   # cki-1
   tau_cki1 = tau_cki1
+  k_myod_cki1 = k_myod_cki1 + x[3]
   cki1_in = rate_cki1_prod(x[1], k_myod_cki1)
   
   # lin-35 (hypophosphorylated, inhibiting proliferation)
   tau_lin35 = tau_lin35
+  k_myod_lin35 = k_myod_lin35 + x[3]
   lin35_in = rate_lin35_prod(x[1], k_myod_lin35)
   
   lin35_phos = rate_lin35_phos(x[5], x[3], x[4], km_lin35, k_cyd1, k_cki1)
