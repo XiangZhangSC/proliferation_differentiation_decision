@@ -27,32 +27,18 @@ def rate_cki1_prod(myod, k_myod_cki1, n_myod_cki1=4.0):
   
   return p_myod_bound_cki1
 
-def rate_lin35_prod(myod, k_myod_lin35, n_myod_lin35=4.0):
-  
-  return HillCube(myod, k_myod_lin35, n_myod_lin35, normalized=True)
-
-def rate_lin35_phos(lin35, cyd1, cki1, km_lin35, kd_cyd1, kd_cki1, n_cyd1=4.0, n_cki1=4.0):
-  # probability of positive cell cycle regulator binding
-  pos_cycle_reg_present = HillCube(cyd1, kd_cyd1, n_cyd1, normalized=True)
-  
-  # probability of negative cell cycle regulaotr unbinding
-  neg_cycle_reg_absent = 1.0 - HillCube(cki1, kd_cki1, n_cki1, normalized=True)
-  
-  lin35_phos_active = pos_cycle_reg_present * neg_cycle_reg_absent
-  
-  lin35_phos = cyd1 * lin35 / (lin35 + km_lin35)
-  
-  # postive regulaotr ON AND NOT negative regulator
-  return lin35_phos_active * lin35_phos
-
-
-def rate_e2f_prod(lin35, kd_lin35_e2f, n_lin35_e2f=4.0):
-  
-  return 1 - HillCube(lin35, kd_lin35_e2f, n_lin35_e2f, normalized=True)
+def rate_lin35_phos(e2f, km_e2f, e2f_tot=1.0):
+  return (e2f_tot - e2f) / ((e2f_tot - e2f) + km_e2f)
 
 def rate_proliferation(e2f, kd_e2f, n_e2f=4.0):
   
   return HillCube(e2f, kd_e2f, n_e2f, normalized=True)
 
-def rate_differentiation(myod, kd, n=4):
-  return HillCube(myod, kd, n, normalized=True)
+def rate_differentiation(myod, kd_myod, n_myod=4):
+  """
+  Hypophosphorylated Rb is required for myogenesis and muscle-specific gene 
+  expression through its interaction with MyoD
+  """
+  
+  return HillCube(myod, kd_myod, n_myod, normalized=True)
+  
