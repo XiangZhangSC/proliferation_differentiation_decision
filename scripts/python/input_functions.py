@@ -27,8 +27,8 @@ def rate_cki1_prod(myod, k_myod_cki1, n_myod_cki1=4.0):
   
   return p_myod_bound_cki1
 
-def rate_lin35_phos(e2f, km_e2f, e2f_tot=1.0):
-  return (e2f_tot - e2f) / ((e2f_tot - e2f) + km_e2f)
+def rate_lin35_phos(e2f, cyd1, km_e2f, e2f_tot=1.0):
+  return cyd1 * (e2f_tot - e2f) / ((e2f_tot - e2f) + km_e2f)
 
 def rate_proliferation(e2f, kd_e2f, n_e2f=4.0):
   

@@ -40,13 +40,12 @@ def pdd(x,t,
   k_cki1 = k_cki1
   prob_cyd1_present = HillCube(x[3], k_cyd1, 4, True)
   prob_cki1_absent = 1.0 - HillCube(x[4], k_cki1, 4, True)
-  E2F_in_complex = (1 - x[5]) > 0 
-  prob_lin35_phosphorylation = prob_cyd1_present * prob_cki1_absent * E2F_in_complex
+  prob_lin35_phosphorylation = prob_cyd1_present * prob_cki1_absent
   
   
   # MyoD directly inhibits cdk kinase activity
   km_e2f = km_e2f + x[1]
-  e2f_in = prob_lin35_phosphorylation * rate_lin35_phos(x[5], km_e2f)
+  e2f_in = prob_lin35_phosphorylation * rate_lin35_phos(x[5], x[3], km_e2f)
   
   # ODEs
   dxdt = [0, 0, 0, 0, 0, 0]
