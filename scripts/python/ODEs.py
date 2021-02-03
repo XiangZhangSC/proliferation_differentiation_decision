@@ -1,6 +1,5 @@
 from input_functions import rate_hlh1_prod, rate_fos1_prod, rate_cyd1_prod, \
-  rate_cki1_prod, rate_lin35_phos
-from toolbox import HillCube
+  rate_cki1_prod, rate_e2f_prod
 
 def pdd(x,t, 
         tau_mls2, 
@@ -8,13 +7,13 @@ def pdd(x,t,
         tau_fos1, k_myod_fos1, 
         tau_cyd1, k_fos1_cyd1, 
         tau_cki1, k_myod_cki1, 
-        tau_e2f, km_e2f, k_cyd1, k_cki1):
+        tau_e2f, km_e2f, k_cki1):
   # mls-2
   tau_mls2 = tau_mls2
-  if 6 <= t <= 14:
-    mls2_in = 1
+  if 4.0 <= t <= 10.0:
+    mls2_in = 1.0
   else:
-    mls2_in = 0
+    mls2_in = 0.0
   
   # hlh-1
   tau_hlh1 = tau_hlh1
@@ -36,16 +35,11 @@ def pdd(x,t,
   cki1_in = rate_cki1_prod(x[1], k_myod_cki1)
   
   # E2F
-  k_cyd1 = k_cyd1
   k_cki1 = k_cki1
-  prob_cyd1_present = HillCube(x[3], k_cyd1, 4, True)
-  prob_cki1_absent = 1.0 - HillCube(x[4], k_cki1, 4, True)
-  prob_lin35_phosphorylation = prob_cyd1_present * prob_cki1_absent
-  
-  
+    
   # MyoD directly inhibits cdk kinase activity
   km_e2f = km_e2f + x[1]
-  e2f_in = prob_lin35_phosphorylation * rate_lin35_phos(x[5], x[3], km_e2f)
+  e2f_in = rate_e2f_prod(x[5], x[3], x[4], km_e2f, k_cki1)
   
   # ODEs
   dxdt = [0, 0, 0, 0, 0, 0]

@@ -28,17 +28,29 @@ def rate_cki1_prod(myod, k_myod_cki1, n_myod_cki1=4.0):
   return p_myod_bound_cki1
 
 def rate_lin35_phos(e2f, cyd1, km_e2f, e2f_tot=1.0):
+  """
+  Cyclin D:cdk has active kinase activity and phosphrylate E2F:pRb complex.
+  
+  The E2F within E2F:pRb complex is inactive, whereas free E2F is active. 
+  Total E2F = [E2F] + [E2F:pRb]
+  """
   return cyd1 * (e2f_tot - e2f) / ((e2f_tot - e2f) + km_e2f)
+
+def rate_e2f_prod(e2f, cyd1, cki1, km_e2f, k_cki1):
+  """
+  Active E2F is released from E2F:pRb by adding phosphorylation group
+  by cyclin D:cdk4 complex
+  """
+  prob_cki1_absent = 1.0 - HillCube(cki1, k_cki1, 4.0, True)
+  return prob_cki1_absent * rate_lin35_phos(e2f, cyd1, km_e2f)
 
 def rate_proliferation(e2f, kd_e2f, n_e2f=4.0):
   
   return HillCube(e2f, kd_e2f, n_e2f, normalized=True)
 
-def rate_differentiation(myod, kd_myod, n_myod=4):
-  """
-  Hypophosphorylated Rb is required for myogenesis and muscle-specific gene 
-  expression through its interaction with MyoD
+def rate_differentiation(myod, kd_myod, n_myod=4.0):
   """
   
+  """
   return HillCube(myod, kd_myod, n_myod, normalized=True)
   
