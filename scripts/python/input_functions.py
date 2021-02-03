@@ -36,21 +36,31 @@ def rate_lin35_phos(e2f, cyd1, km_e2f, e2f_tot=1.0):
   """
   return cyd1 * (e2f_tot - e2f) / ((e2f_tot - e2f) + km_e2f)
 
-def rate_e2f_prod(e2f, cyd1, cki1, km_e2f, k_cki1):
+def rate_e2f_prod(e2f, cyd1, cki1, lin35, km_e2f, k_cki1):
   """
   Active E2F is released from E2F:pRb by adding phosphorylation group
   by cyclin D:cdk4 complex
   """
-  prob_cki1_absent = 1.0 - HillCube(cki1, k_cki1, 4.0, True)
-  return prob_cki1_absent * rate_lin35_phos(e2f, cyd1, km_e2f)
+  cki1_absent = 1.0 - HillCube(cki1, k_cki1, 4.0, True)
+  phos_lin35 = rate_lin35_phos(e2f, cyd1, km_e2f)
+  lin35_not_binds_e2f = 1.0 - e2f * lin35
+  return cki1_absent * phos_lin35 * lin35_not_binds_e2f
+
+def rate_lin35_prod(myod, e2f, cyd1, lin35, 
+                    k_myod_lin35, km_e2f, n_myod_lin35=4.0):
+  myod_induction = HillCube(myod, k_myod_lin35, n_myod_lin35, normalized=True)
+  phos_lin35 = rate_lin35_phos(e2f, cyd1, km_e2f)
+  lin35_not_binds_e2f = 1.0 - e2f * lin35
+  
+  return (1 - (1 - myod_induction)*(1 - phos_lin35))*lin35_not_binds_e2f
 
 def rate_proliferation(e2f, kd_e2f, n_e2f=4.0):
   
   return HillCube(e2f, kd_e2f, n_e2f, normalized=True)
 
-def rate_differentiation(myod, kd_myod, n_myod=4.0):
+def rate_differentiation(myod, lin35, kd_myod, n_myod=4.0):
   """
   
   """
-  return HillCube(myod, kd_myod, n_myod, normalized=True)
+  return HillCube(myod*lin35, kd_myod, n_myod, normalized=True)
   
