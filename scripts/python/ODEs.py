@@ -7,7 +7,7 @@ def pdd(x,t,
         tau_fos1, k_myod_fos1, 
         tau_cyd1, k_fos1_cyd1, 
         tau_cki1, k_myod_cki1, 
-        km_e2f, k_cki1, 
+        km_e2f, k_on, k_cki1, 
         tau_lin35, k_myod_lin35):
   # mls-2
   tau_mls2 = tau_mls2
@@ -40,13 +40,17 @@ def pdd(x,t,
     
   # MyoD directly inhibits cdk kinase activity
   km_e2f = km_e2f + x[1]
-  e2f_in = rate_e2f_prod(e2f=x[5], cyd1=x[3], cki1=x[4], lin35=x[6], km_e2f=km_e2f, k_cki1=k_cki1)
+  k_on = k_on
+  e2f_in = rate_e2f_prod(e2f=x[5], cyd1=x[3], cki1=x[4], lin35=x[6], 
+                         km_e2f=km_e2f, k_on=k_on, k_cki1=k_cki1)
   
   # lin-35
   tau_lin35 = tau_lin35
   k_myod_lin35 = k_myod_lin35 + x[3]
   km_e2f = km_e2f
-  lin35_in = rate_lin35_prod(myod=x[1], e2f=x[5], cyd1=x[3], lin35=x[6], k_myod_lin35=k_myod_lin35, km_e2f=km_e2f)
+  k_on = k_on
+  lin35_in = rate_lin35_prod(myod=x[1], e2f=x[5], cyd1=x[3], lin35=x[6], 
+                             k_myod_lin35=k_myod_lin35, km_e2f=km_e2f, k_on=k_on)
   
   # ODEs
   dxdt = [0, 0, 0, 0, 0, 0, 0]
