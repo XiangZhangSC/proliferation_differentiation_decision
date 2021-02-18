@@ -128,7 +128,7 @@ def sketch_ppd(xt, proliferation, differentiation, ts):
   ax[1].set_ylabel('hlh-1')
   ax[1].set_xticks(np.arange(0, 20+2, 2))
 
-  ax[2].plot(ts, xt[:,2], color='blue', label='fos-1')
+  ax[2].plot(ts, xt[:,2], color='b', label='fos-1') 
   ax[2].plot(ts, xt[:,7], color='orange', label='jun-1')
   ax[2].set_xlabel('Hour')
   ax[2].legend()

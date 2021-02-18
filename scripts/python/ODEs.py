@@ -9,7 +9,7 @@ def pdd(x,t,
         tau_cki1, k_myod_cki1, 
         km_e2f, k_cki1, 
         tau_lin35, k_myod_lin35, 
-        tau_jun1, k_myod_jun1):
+        tau_jun1, k_lin35_jun1):
   # mls-2
   tau_mls2 = tau_mls2
   if 4.0 <= t <= 10.0:
@@ -26,11 +26,11 @@ def pdd(x,t,
   # fos-1
   tau_fos1 = tau_fos1
   k_myod_fos1 = k_myod_fos1
-  fos1_in = rate_fos1_prod(x[1], x[2], x[7], k_myod_fos1)
+  fos1_in = rate_fos1_prod(x[1], k_myod_fos1)
   
   # cyd-1
   tau_cyd1 = tau_cyd1
-  ap1 = min(x[2], x[7])
+  ap1 = min(x[2],x[7])
   k_ap1_cyd1 = k_ap1_cyd1
   cyd1_in = rate_cyd1_prod(ap1, k_ap1_cyd1)
   
@@ -54,8 +54,8 @@ def pdd(x,t,
   
   # jun-1
   tau_jun1 = tau_jun1
-  k_myod_jun1 = k_myod_jun1
-  jun1_in = rate_jun1_prod(x[1], x[7], x[2], k_myod_jun1)
+  k_lin35_jun1 = k_lin35_jun1
+  jun1_in = rate_jun1_prod(x[6], k_lin35_jun1)
   
   # ODEs
   dxdt = [0, 0, 0, 0, 0, 0, 0, 0]
