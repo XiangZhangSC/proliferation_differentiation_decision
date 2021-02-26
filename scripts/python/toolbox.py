@@ -128,14 +128,14 @@ def sketch_ppd(xt, proliferation, differentiation, ts):
   ax[1].set_ylabel('hlh-1')
   ax[1].set_xticks(np.arange(0, 20+2, 2))
 
-  ax[2].plot(ts, xt[:,2], color='b', label='fos-1') 
-  ax[2].plot(ts, xt[:,7], color='orange', label='jun-1')
+  ax[2].plot(ts, xt[:,2], color='k') 
   ax[2].set_xlabel('Hour')
-  ax[2].legend()
+  ax[2].set_ylabel('fos-1')
   ax[2].set_xticks(np.arange(0, 20+2, 2))
 
   ax[3].plot(ts, xt[:,3], color='g', label='cyd-1')
   ax[3].plot(ts, xt[:,4], color='r', label='cki-1')
+  ax[3].plot(ts, xt[:,7], color='blue', label='cye-1')
   ax[3].set_xlabel('Hour')
   ax[3].legend()
   ax[3].set_xticks(np.arange(0, 20+2, 2))
@@ -158,3 +158,32 @@ def sketch_ppd(xt, proliferation, differentiation, ts):
 
   plt.show()
   
+def sim_experiment(ode_model, x0, ts, f_mls2_in, rate_proliferation, rate_differentiation, 
+                   ko_hlh1=False, ko_lin35=False, ko_cki1=False):
+  # parameters
+  tau_mls2=0.5
+  tau_hlh1=0.5; k_mls2_hlh1=0.3; k_myod_hlh1=0.3; 
+  tau_fos1=0.5; k_myod_fos1=0.3
+  tau_cyd1=0.5; k_fos1_cyd1=0.3; 
+  tau_cki1=0.5; k_myod_cki1=0.3; 
+  km_e2f=0.3
+  tau_lin35=0.5; k_myod_lin35=0.3; 
+  tau_cye1=0.5; k_e2f_cye1=0.3
+
+  my_pars = (tau_mls2, f_mls2_in, 
+             tau_hlh1, k_mls2_hlh1, k_myod_hlh1, ko_hlh1,
+             tau_fos1, k_myod_fos1, 
+             tau_cyd1, k_fos1_cyd1, 
+             tau_cki1, k_myod_cki1, ko_cki1,
+             km_e2f, 
+             tau_lin35, k_myod_lin35, ko_lin35, 
+             tau_cye1, k_e2f_cye1)
+
+  # solution
+  xt = solve_pdd(ode_model, x0, my_pars, ts)
+
+  proliferation = rate_proliferation(xt[:,5], kd_e2f=0.3)
+  differentiation = rate_differentiation(myod=xt[:,1], cyd1=xt[:,3], fos1=xt[:,2], lin35=xt[:,6], kd_myod=0.3, kd_fos1=0.3)
+
+  # visualization
+  sketch_ppd(xt, proliferation, differentiation, ts)
