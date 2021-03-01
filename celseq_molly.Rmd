@@ -521,7 +521,7 @@ This approach was implemented in RUVr function in RUVseq package.
 Therefore, these normalized counts cannot be used blindly to represent (relative) abundances of genes at different time points.
 In short we should not use these normalized counts for developing the ODE model. 
 
-```{r}
+```{r include=FALSE}
 # filter out RIT and ERCC genes
 # RIT no gene annotation
 # ERCC gene will be different between time points (PCR amplifcation) but should not be different within each time point (same batch)
@@ -529,7 +529,7 @@ In short we should not use these normalized counts for developing the ODE model.
 read_count_mat_filtered <- read_count_mat[!str_detect(row.names(read_count_mat), "RIT|ERCC"),]
 ```
 
-```{r message=FALSE}
+```{r include=FALSE}
 # make sure that the colnames of count matrix is the same as the meta data
 identical(colnames(read_count_mat_filtered), meta_dat$library_id)
 
@@ -544,7 +544,26 @@ my_offsets <- matrix(0L, nrow = nrow(read_count_mat_filtered), ncol = ncol(read_
 #my_dispersions0 <- estimateDisp(read_count_mat_filtered, design = my_design0, offset = my_offsets)
 #my_fit0 <- glmFit(read_count_mat_filtered, design = my_design0, dispersion = my_dispersions0$tagwise.dispersion, offset = my_offsets)
 #my_res0 <- residuals(my_fit0, type = "deviance")
+#readr::write_rds(my_res0, "molly_residual_matrix.rds")
+```
 
+```{r echo=FALSE, fig.width=12, fig.height=6}
+my_res0 <- readr::read_rds("molly_residual_matrix.rds")
+
+# PCA of residual matrix
+s <- svd(my_res0)
+d0 <- s$d
+data.frame(PC = seq(1, length(d0)), var_exp = d0^2/sum(d0^2)) %>% 
+  ggplot(aes(PC, var_exp)) + 
+  geom_point(size = 3) + 
+  theme_bw() + 
+  labs(x = "Unwanted factor", 
+       y = "Variance explained") + 
+  theme(axis.title = element_text(size = 14), 
+        axis.text = element_text(size = 12))
+```
+
+```{r include=FALSE}
 #ruv_out <- RUVSeq::RUVr(read_count_mat_filtered, cIdx = row.names(read_count_mat_filtered), k = 2, residuals = my_res0)
 
 #W_hat.df <- ruv_out$W %>% 
@@ -576,7 +595,8 @@ W_hat.df <- readr::read_csv("Molly_unwanted_factors.csv")
 W_hat.df %>% 
   left_join(seq_depth.df, by = "library_id") %>% 
   ggplot(aes(W_1, log10(tot_read_count))) + 
-  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) + 
+  geom_point(size = 3) + 
   labs(x = "log10(sequencing depth)", y = "Unwanted factor 1") + 
   theme_bw()
 ```
@@ -617,6 +637,25 @@ sketch_PCA(normalized_read_count_mat[rowSums(normalized_read_count_mat)>0,])
 ```
 
 Now, when we investigate the PCA of normalized read counts (log scale, centered), we can clearly see that replicate libraries derived from the same condition cluster together. 
+
+### Sample-to-sample distance
+
+```{r echo=FALSE, fig.width=12, fig.height=12}
+library(RColorBrewer)
+library(pheatmap)
+
+sample_dists <- dist(t(log(normalized_read_count_mat + 1)))
+
+plot(hclust(sample_dists, method = "complete"))
+
+sample_dist_mat <- as.matrix(sample_dists)
+colnames(sample_dist_mat) <- NULL
+my_colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+pheatmap(sample_dist_mat,
+         clustering_distance_rows=sample_dists,
+         clustering_distance_cols=sample_dists,
+         col=my_colors)
+```
 
 ## Differential expression analysis
 
@@ -729,7 +768,7 @@ ggplot(gene_stats_lox_vs_wt, aes(logFC, -log10(PValue))) +
   geom_point(data = sig_genes, color = "red", alpha = 0.2) + 
   ggrepel::geom_text_repel(data = sig_genes_to_be_annotated, aes(label = external_gene_id)) + 
   theme_bw() + 
-  facet_wrap(~time_point, ncol = 2, scale = "free")
+  facet_wrap(~time_point, ncol = 4, scale = "free")
 ```
 
 ## Genes of interest for ODE model development
