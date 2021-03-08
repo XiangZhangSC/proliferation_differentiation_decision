@@ -46,7 +46,7 @@ def pdd(x,t,
   lin35_in = 1.0 - (1.0 - prod_lin35_by_myod(x[1], k_myod_lin35)*(1.0 - ko_lin35)) * (1.0 - e2f_in)
   
   # cye-1
-  tau_cye1 = tau_cye1 * (1 - x[0]) # MLS-2 regulates the stability of CYE-1 in the M lineage
+  tau_cye1 = tau_cye1
   k_e2f_cye1 = k_e2f_cye1
   cye1_in = rate_cye1_prod(x[5], k_e2f_cye1)
   
