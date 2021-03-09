@@ -371,6 +371,7 @@ genes_undefined_pcr_amp <- pcr_amplif_df %>%
 
 pcr_amplif_df %>% 
   dplyr::filter(!gene_sequence_name %in% genes_undefined_pcr_amp) %>% 
+  arrange(time_point, genotype) %>% 
   ggplot(aes(fct_inorder(library_id), pcr_amp, fill = time_point)) + 
   geom_boxplot() + 
   scale_fill_brewer("", palette = "Dark2") + 
@@ -646,8 +647,6 @@ library(pheatmap)
 
 sample_dists <- dist(t(log(normalized_read_count_mat + 1)))
 
-plot(hclust(sample_dists, method = "complete"))
-
 sample_dist_mat <- as.matrix(sample_dists)
 colnames(sample_dist_mat) <- NULL
 my_colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
@@ -768,7 +767,7 @@ ggplot(gene_stats_lox_vs_wt, aes(logFC, -log10(PValue))) +
   geom_point(data = sig_genes, color = "red", alpha = 0.2) + 
   ggrepel::geom_text_repel(data = sig_genes_to_be_annotated, aes(label = external_gene_id)) + 
   theme_bw() + 
-  facet_wrap(~time_point, ncol = 4, scale = "free")
+  facet_wrap(~time_point, ncol = 2, scale = "free")
 ```
 
 ## Genes of interest for ODE model development
@@ -780,19 +779,7 @@ We do not know whether the gene expression changes from one time point to anothe
 
 ```{r echo=FALSE, fig.width=12, fig.height=12}
 target_genes <- annotation.df %>% 
-  dplyr::filter(external_gene_id %in% c("mls-2", "hlh-1", "cdk-4", "cyd-1", "cki-1", "unc-15", "fos-1", "jun-1"))
-
-normalized_read_count_df %>% 
-  inner_join(target_genes, by = c("gene_sequence_name" = "wormbase_gseq")) %>% 
-  mutate(external_gene_id = factor(external_gene_id, levels = c("mls-2", "hlh-1", "cdk-4", "cyd-1", "cki-1", "unc-15", "fos-1", "jun-1")), 
-         genotype = factor(genotype, levels = c("wt", "lox"))) %>% 
-  ggplot(aes(genotype, log(read_count + 1))) + 
-  geom_point(aes(color = genotype), size = 2, position = position_jitter(width = 0.2)) + 
-  scale_color_brewer("", palette = "Set2") + 
-  facet_grid(external_gene_id~time_point, scales = "free") + 
-  labs(x = NULL, y = "log(Normalized Read Counts + 1)") + 
-  theme_bw() + 
-  theme(legend.position = "none")
+  dplyr::filter(external_gene_id %in% c("mls-2", "hlh-1", "fos-1", "cyd-1", "cki-1", "lin-35", "cye-1", "efl-1"))
 ```
 
 ### mls-2
@@ -869,14 +856,6 @@ gene_stats_lox_vs_wt %>%
   knitr::kable()
 ```
 
-### jun-1
-
-```{r echo=FALSE}
-gene_stats_lox_vs_wt %>% 
-  dplyr::filter(external_gene_id == "jun-1") %>% 
-  knitr::kable()
-```
-
 ## Use relative expression to track qualitative gene expression changes over time
 
 In the "Batch effect" section, I used PCR amplification bias to indicate batch effects.
@@ -919,58 +898,32 @@ There are `r length(spikein_present_all_samples)` ERCC spike-ins present in all 
 
 ```{r echo=FALSE, message=FALSE, fig.width=12, fig.height=12}
 pcr_amplif_df %>% 
-  dplyr::filter(gene_sequence_name %in% spikein_present_all_samples, 
-                !library_id %in% "lox_hour10_rep3") %>% 
-  mutate(t_shifted = str_sub(time_point, 5, -1), 
-         t_shifted = as.numeric(t_shifted), 
-         t_shifted = t_shifted - 6) %>% 
-  ggplot(aes(t_shifted, pcr_amp)) + 
-  geom_point(size = 2, alpha = 0.5) + 
-  geom_smooth(se = FALSE) + 
-  scale_x_continuous(breaks = seq(0, 14, 2), labels = str_c("Hour", seq(6, 20, 2))) + 
-  facet_wrap(~gene_sequence_name, scales = "free") + 
+  dplyr::filter(gene_sequence_name %in% spikein_present_all_samples) %>% 
+  arrange(time_point, genotype) %>% 
+  ggplot(aes(fct_inorder(library_id), pcr_amp)) + 
+  geom_point(size = 2, aes(color = time_point)) + 
+  scale_color_brewer("", palette = "Dark2") + 
+  facet_wrap(~gene_sequence_name, scales = "free_y") + 
   labs(x = NULL , y = "log2(read count / UMI count)") + 
   theme_bw() + 
-  theme(axis.text.x = element_text(angle = 90))
+  theme(axis.text.x = element_blank(), 
+        legend.position = c(0.5,0.1), 
+        legend.direction = "horizontal", 
+        legend.text = element_text(size = 12))
 ```
 
 Relatively spike-in "ERCC-00113" showed a similar pattern of batch effect as cdk-4, cki-1, cyd-1 and hlh-1. 
-I also found that "ERCC-00095" approximated well the general batch effect. 
-
-```{r echo=FALSE, warning=FALSE, message=FALSE, fig.width=8, fig.height=8}
-pcr_amplif_df %>% 
-  dplyr::filter(gene_sequence_name == "ERCC-00095", 
-                !library_id %in% "lox_hour10_rep3") %>% 
-  mutate(t_shifted = str_sub(time_point, 5, -1), 
-         t_shifted = as.numeric(t_shifted), 
-         t_shifted = t_shifted - 6) %>% 
-  ggplot(aes(t_shifted, pcr_amp)) + 
-  geom_point(size = 3, alpha = 0.5) + 
-  geom_smooth(se = FALSE) + 
-  scale_x_continuous(breaks = seq(0, 14, 2), labels = str_c("Hour", seq(6, 20, 2))) + 
-  labs(x = NULL , y = "log2(read count / UMI count)") + 
-  theme_bw() + 
-  theme(axis.text.x = element_text(angle = 90))
-```
-
-"ERCC-00095" contains 0, which will lead to NA relative expression. 
-However, these 0 read counts were in "lox" group, so relative expression will be okay for wild type.
 
 ```{r}
-ercc95 <- read_count_data_final %>% 
-  dplyr::filter(gene_sequence_name == "ERCC-00095") %>% 
-  rename(ercc95_read_count = read_count) %>% 
+ercc113 <- read_count_data_final %>% 
+  dplyr::filter(gene_sequence_name == "ERCC-00113") %>% 
+  rename(ercc_read_count = read_count) %>% 
   dplyr::select(-gene_sequence_name)
-
-ercc95 %>% 
-  dplyr::filter(ercc95_read_count == 0)
 ```
 
 Anyway, I cannot find any other spiked-ins that showed similar pattern as fos-1, unc-15 as well as mls-2.
 
-Since the amount of spiked-in material is assumed to be constant across samples, the read counts difference between time points is driven by factors such as sequencing depth and batch effect. 
-When I use "ERCC-00095" this only works for cdk-4, cki-1, cyd-1 and hlh-1. 
-The *BIG* assumption is that "ERCC-00095" affected by batch effect similar to those four genes. 
+Since the amount of spiked-in material is assumed to be constant across samples, the read counts difference between time points is driven by artificial factors. 
 If I use this gene as reference ($S$), then I can track the relative gene expression changes over time. 
 
 $$\text{Relative Expression of }X_{t} = log2(\frac{X_{t}}{S_{t}})$$
@@ -986,26 +939,58 @@ Here, I assumed that $log2(\frac{S_{t1}}{S_{t2}})$ contains artificial time effe
 ```{r echo=FALSE, message=FALSE, fig.width=10, fig.height=12}
 model_genes_expression <- read_count_data_final %>% 
   inner_join(target_genes, by = c("gene_sequence_name" = "wormbase_gseq")) %>% 
-  dplyr::filter(external_gene_id %in% c("hlh-1", "cyd-1", "cdk-4", "cki-1")) %>% 
-  left_join(ercc95, by = c("library_id", "genotype", "time_point", "sample_id")) %>% 
-  mutate(relative_expression = log2(read_count) - log2(ercc95_read_count)) %>% 
-  mutate(external_gene_id = factor(external_gene_id, levels = c("hlh-1", "cyd-1", "cdk-4", "cki-1")), 
-         t_shifted = str_sub(time_point, 5, -1), 
+  left_join(ercc113, by = c("library_id", "genotype", "time_point", "sample_id")) %>% 
+  mutate(relative_expression = read_count/ercc_read_count) %>% 
+  mutate(t_shifted = str_sub(time_point, 5, -1), 
          t_shifted = as.numeric(t_shifted), 
          t_shifted = t_shifted - 6)
 
 #readr::write_csv(model_genes_expression, "model_genes_relative_expression.csv")
 
-ggplot(model_genes_expression, aes(t_shifted, relative_expression)) + 
-  geom_point(size = 2) + 
-  geom_smooth(se = FALSE) + 
+re_wt <- model_genes_expression %>% 
+  dplyr::filter(genotype == "wt") %>% 
+  group_by(external_gene_id, time_point, t_shifted) %>% 
+  summarize(avg_relative_expression = median(relative_expression)) %>% 
+  ungroup() %>% 
+  mutate(external_gene_id = factor(external_gene_id, 
+                                   levels = c("mls-2", 
+                                              "hlh-1", 
+                                              "fos-1", 
+                                              "cyd-1", 
+                                              "cye-1", 
+                                              "cki-1", 
+                                              "lin-35", 
+                                              "efl-1")))
+
+re_wt %>% 
+  ggplot(aes(t_shifted, avg_relative_expression)) + 
+  geom_point() + 
+  geom_line() + 
   scale_x_continuous(breaks = seq(0, 14, 2), labels = str_c("Hour", seq(6, 20, 2))) + 
-  scale_color_brewer(palette = "Set2") + 
-  facet_grid(external_gene_id~genotype, scales = "free_y") + 
-  labs(x = NULL, y = "Relative expression (log2 scale)") + 
-  theme_bw() + 
+  facet_wrap(~external_gene_id, ncol = 1, scales = "free_y") + 
+  labs(x = NULL, y = "Relative expression") + 
+  theme_classic() + 
   theme(legend.position = "bottom", 
-        axis.text.x = element_text(angle = 90))
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+re_wt_ends <- re_wt %>% 
+  dplyr::select(-t_shifted) %>% 
+  group_by(external_gene_id) %>% 
+  summarise(min_re = min(avg_relative_expression), 
+            max_re = max(avg_relative_expression))
+
+re_wt %>% 
+  left_join(re_wt_ends) %>% 
+  mutate(normalized_re = (avg_relative_expression - min_re) / (max_re - min_re)) %>% 
+  ggplot(aes(t_shifted, normalized_re)) + 
+  geom_point() + 
+  geom_line() + 
+  scale_x_continuous(breaks = seq(0, 14, 2), labels = str_c("Hour", seq(6, 20, 2))) + 
+  facet_wrap(~external_gene_id, ncol = 1, scales = "free_y") + 
+  labs(x = NULL, y = "Normalized Relative Expression") + 
+  theme_classic() + 
+  theme(legend.position = "bottom", 
+        axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 # Conclusion
