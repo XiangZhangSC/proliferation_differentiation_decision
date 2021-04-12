@@ -9,35 +9,41 @@ chart_dynamics <- function(ode.out, display_dat) {
     pivot_longer(-time, names_to = "what", values_to = "concentration")
   
   state_panel <- data.frame(
-    what = c("MLS2", "LIN1", "HLH1", "FOS1", "CYD1", "CYE1", "CKI1", "LIN35", "E2F", "MEF2", "Proliferation", "Differentiation"), 
-    panel = c("panel1", "panel1", "panel2", "panel2", "panel3", "panel3", "panel3", "panel4", "panel5", "panel6", "panel7", "panel7")
+    what = c("MLS2", "LIN1", "HLH1", "HLH1LIN35", "HLH1CYD1", "FOS1", "CYD1", "CYE1", "CKI1", "LIN35", "E2F", "E2FLIN35", "MEF2", "RNR1", "UNC15"), 
+    panel = c("panel1", "panel1", "panel2", "panel2", "panel2", "panel3", "panel4", "panel4", "panel4", "panel5", "panel5", "panel5", "panel6", "panel7", "panel7")
   )
   
   state_colors <- c("MLS2" = "black", 
-                    "LIN1" = "blue", 
-                    "HLH1" = "black", 
-                    "FOS1" = "orange", 
+                    "LIN1" = "coral", 
+                    "HLH1" = "black",
+                    "HLH1LIN35" = "purple", 
+                    "HLH1CYD1" = "deeppink", 
+                    "FOS1" = "black", 
                     "CYD1" = "darkgreen", 
                     "CYE1" = "blue", 
                     "CKI1" = "red", 
-                    "LIN35" = 'black', 
-                    "E2F" = "black", 
+                    "LIN35" = 'orchid', 
+                    "E2F" = "limegreen", 
+                    "E2FLIN35" = "firebrick1",
                     "MEF2" = "black", 
-                    "Proliferation" = "black", 
-                    "Differentiation" = "blue")
+                    "RNR1" = "black", 
+                    "UNC15" = "blue")
   
   state_linetypes <- c("MLS2" = "solid", 
                    "LIN1" = "solid", 
                    "HLH1" = "solid", 
+                   "HLH1LIN35" = "solid", 
+                   "HLH1CYD1" = "solid", 
                    "FOS1" = "solid", 
                    "CYD1" = "solid", 
                    "CYE1" = "solid", 
                    "CKI1" = "solid", 
-                   "LIN35" = "solid", 
-                   "E2F" = "solid", 
+                   "LIN35" = "dashed", 
+                   "E2F" = "dashed", 
+                   "E2FLIN35" = "solid", 
                    "MEF2" = "solid", 
-                   "Proliferation" = "solid", 
-                   "Differentiation" = "dashed")
+                   "RNR1" = "solid", 
+                   "UNC15" = "dashed")
   
   state_peak <- ode.out.df %>% 
     group_by(what) %>% 
@@ -63,7 +69,8 @@ chart_dynamics <- function(ode.out, display_dat) {
     theme_bw() + 
     theme(strip.text = element_blank(), 
           legend.position = "none", 
-          axis.title = element_text(size = 14))
+          axis.title = element_text(size = 14)) + 
+    scale_x_continuous(breaks = seq(from = 0, to = 20, by = 2))
   
   if (display_dat == FALSE) {
     p
@@ -71,9 +78,7 @@ chart_dynamics <- function(ode.out, display_dat) {
     model_genes_dat <- readr::read_csv("model_genes_relative_expression.csv") %>% 
       dplyr::mutate(external_gene_id = stringr::str_to_upper(external_gene_id), 
                     external_gene_id = stringr::str_replace(external_gene_id, "-", ""), 
-                    what = ifelse(external_gene_id == "RNR1", "Proliferation", external_gene_id), 
-                    what = ifelse(external_gene_id == "UNC15", "Differentiation", what), 
-                    what = ifelse(external_gene_id == "EFL1", "E2F", what)) %>% 
+                    what = ifelse(external_gene_id == "EFL1", "E2F", external_gene_id)) %>% 
       dplyr::select(-external_gene_id) %>% 
       tidyr::pivot_longer(hour00:hour20, names_to = "time", values_to = "relative_expression") %>% 
       dplyr::mutate(time = stringr::str_sub(time, 5, 6), 
