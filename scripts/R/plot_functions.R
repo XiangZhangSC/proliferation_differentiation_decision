@@ -9,15 +9,14 @@ chart_dynamics <- function(ode.out, display_dat) {
     pivot_longer(-time, names_to = "what", values_to = "concentration")
   
   state_panel <- data.frame(
-    what = c("MLS2", "LIN1", "HLH1", "HLH1LIN35", "HLH1CYD1", "FOS1", "CYD1", "CYE1", "CKI1", "LIN35", "E2F", "E2FLIN35", "MEF2", "RNR1", "UNC15"), 
-    panel = c("panel1", "panel1", "panel2", "panel2", "panel2", "panel3", "panel4", "panel4", "panel4", "panel5", "panel5", "panel5", "panel6", "panel7", "panel7")
+    what = c("MLS2", "LIN1", "HLH1", "HLH1LIN35", "FOS1", "CYD1", "CYE1", "CKI1", "LIN35", "E2F", "E2FLIN35", "UNC120", "RNR1", "UNC15"), 
+    panel = c("panel1", "panel1", "panel2", "panel2", "panel3", "panel4", "panel4", "panel4", "panel5", "panel5", "panel5", "panel6", "panel7", "panel7")
   )
   
   state_colors <- c("MLS2" = "black", 
                     "LIN1" = "coral", 
                     "HLH1" = "black",
                     "HLH1LIN35" = "purple", 
-                    "HLH1CYD1" = "deeppink", 
                     "FOS1" = "black", 
                     "CYD1" = "darkgreen", 
                     "CYE1" = "blue", 
@@ -25,7 +24,7 @@ chart_dynamics <- function(ode.out, display_dat) {
                     "LIN35" = 'orchid', 
                     "E2F" = "limegreen", 
                     "E2FLIN35" = "firebrick1",
-                    "MEF2" = "black", 
+                    "UNC120" = "black", 
                     "RNR1" = "black", 
                     "UNC15" = "blue")
   
@@ -33,7 +32,6 @@ chart_dynamics <- function(ode.out, display_dat) {
                    "LIN1" = "solid", 
                    "HLH1" = "solid", 
                    "HLH1LIN35" = "solid", 
-                   "HLH1CYD1" = "solid", 
                    "FOS1" = "solid", 
                    "CYD1" = "solid", 
                    "CYE1" = "solid", 
@@ -41,7 +39,7 @@ chart_dynamics <- function(ode.out, display_dat) {
                    "LIN35" = "dashed", 
                    "E2F" = "dashed", 
                    "E2FLIN35" = "solid", 
-                   "MEF2" = "solid", 
+                   "UNC120" = "solid", 
                    "RNR1" = "solid", 
                    "UNC15" = "dashed")
   

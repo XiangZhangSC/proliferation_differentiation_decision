@@ -3,7 +3,7 @@ library(tidyr)
 library(stringr)
 
 input_lin1 <- function(scenario) {
-  if (scenario == "Molly") {
+  if (scenario %in% c("Molly")) {
     relative_expression <- read.csv("model_genes_relative_expression.csv")
     lin1 <- relative_expression %>% 
       dplyr::filter(external_gene_id == "lin-1") %>% 
@@ -11,15 +11,10 @@ input_lin1 <- function(scenario) {
       dplyr::mutate(hour = as.numeric(str_sub(hour, 5, 6))) %>% 
       dplyr::select(hour, expression)
     
-  } else if (scenario == "lin-1 ON mls-2 OFF") {
+  } else if (scenario %in% c("Mitogen ON and mls-2 OFF", "Mitogen ON and mls-2 ON")) {
     lin1 <- data.frame(
-      hour = seq(from = 0, to = 20, by = 2), 
-      expression = c(rep(0, times = 4), rep(1, times = 4), rep(0, times = 3))
-    )
-  } else if (scenario == "lin-1 OFF mls-2 ON") {
-    lin1 <- data.frame(
-      hour = seq(from = 0, to = 20, by = 2), 
-      expression = c(rep(0, times = 4), rep(0, times = 4), rep(0, times = 3))
+      hour = seq(from = 0, to = 20, by = 1), 
+      expression = c(rep(0, times = 2), rep(1, times = 4), rep(0, times = 15))
     )
   }
   f_lin1 <- approxfun(lin1, rule = 2)
@@ -35,15 +30,15 @@ input_mls2 <- function(scenario) {
       dplyr::mutate(hour = as.numeric(str_sub(hour, 5, 6))) %>% 
       dplyr::select(hour, expression)
     
-  } else if (scenario == "lin-1 ON mls-2 OFF") {
+  } else if (scenario == "Mitogen ON and mls-2 OFF") {
     mls2 <- data.frame(
       hour = seq(from = 0, to = 20, by = 2), 
       expression = c(rep(0, times = 4), rep(0, times = 4), rep(0, times = 3))
     )
-  } else if (scenario == "lin-1 OFF mls-2 ON") {
+  } else if (scenario == "Mitogen ON and mls-2 ON") {
     mls2 <- data.frame(
-      hour = seq(from = 0, to = 20, by = 2), 
-      expression = c(rep(0, times = 4), rep(1, times = 4), rep(0, times = 3))
+      hour = seq(from = 0, to = 20, by = 1), 
+      expression = c(rep(0, times = 6), rep(1, times = 8), rep(0, times = 7))
     )
   }
   f_mls2 <- approxfun(mls2, rule = 2)

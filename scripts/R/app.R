@@ -15,8 +15,8 @@ ui <- fluidPage(
            wellPanel(
              fluidRow(
                column(4, checkboxInput("display_dat", "Display gene expression data?", value = TRUE)), 
-               column(4, radioButtons("scenario", "Scenario", 
-                                      choices = list("Molly", "lin-1 ON mls-2 OFF", "lin-1 OFF mls-2 ON"))),
+               column(4, radioButtons("scenario", "Scenario",  
+                                      choices = list("Molly", "Mitogen ON and mls-2 OFF", "Mitogen ON and mls-2 ON"))),
                column(4, downloadButton("download", "Download the plot"))
              )
            ),
@@ -24,9 +24,13 @@ ui <- fluidPage(
              h5("HLH-1"), 
              fluidRow(
                column(3, sliderInput("tau_hlh1", "tau_hlh1", min = 0, max = 1, value = 0.5, step = 0.05)),
-               column(3, sliderInput("k_mls2_hlh1", "k_mls2_hlh1", min = 0, max = 1, value = 0.9, step = 0.05)),
+               column(3, sliderInput("k_mls2_hlh1", "k_mls2_hlh1", min = 0, max = 1, value = 0.3, step = 0.05)),
                column(3, sliderInput("k_hlh1_hlh1", "k_hlh1_hlh1", min = 0, max = 1, value = 0.1, step = 0.05)), 
-               column(3, sliderInput("k_fos1_hlh1", "k_fos1_hlh1", min = 0, max = 1, value = 0.3, step = 0.05))
+               column(3, sliderInput("k_fos1_hlh1", "k_fos1_hlh1", min = 0, max = 1, value = 0.4, step = 0.05))
+             ), 
+             fluidRow(
+               column(6, sliderInput("k_cye1_hlh1", "k_cye1_hlh1", min = 0, max = 1, value = 0.8, step = 0.05)), 
+               column(6, sliderInput("k_cki1_hlh1", "k_cki1_hlh1", min = 0, max = 1, value = 0.3, step = 0.05))
              )
            ),
            wellPanel(
@@ -55,7 +59,7 @@ ui <- fluidPage(
              h5("CKI-1"), 
              fluidRow(
                column(6, sliderInput("tau_cki1", "tau_cki1", min = 0, max = 1, value = 0.5, step = 0.05)), 
-               column(6, sliderInput("k_hlh1_cki1", "k_hlh1_cki1", min = 0, max = 1, value = 0.6, step = 0.05))
+               column(6, sliderInput("k_hlh1_cki1", "k_hlh1_cki1", min = 0, max = 1, value = 0.3, step = 0.05))
              )
            ),
            wellPanel(
@@ -66,19 +70,18 @@ ui <- fluidPage(
              )
            ),
            wellPanel(
-             h5("MEF-2"), 
+             h5("UNC-120"), 
              fluidRow(
-               column(3, sliderInput("tau_mef2", "tau_mef2", min = 0, max = 1, value = 0.5, step = 0.05)), 
-               column(3, sliderInput("k_hlh1_mef2", "k_hlh1_mef2", min = 0, max = 1, value = 0.9, step = 0.05)), 
-               column(3, sliderInput("k_mef2_mef2", "k_mef2_mef2", min = 0, max = 1, value = 0.3, step = 0.05)), 
-               column(3, sliderInput("k_fos1_mef2", "k_fos1_mef2", min = 0, max = 1, value = 0.3, step = 0.05))
+               column(4, sliderInput("tau_unc120", "tau_unc120", min = 0, max = 1, value = 0.5, step = 0.05)), 
+               column(4, sliderInput("k_hlh1_unc120", "k_hlh1_unc120", min = 0, max = 1, value = 0.8, step = 0.05)), 
+               column(4, sliderInput("k_fos1_unc120", "k_fos1_unc120", min = 0, max = 1, value = 0.3, step = 0.05))
              )
            ),
            wellPanel(
              h5("Protein complex"), 
              fluidRow(
                column(4, sliderInput("tau_HLH1LIN35", "tau_HLH1LIN35", min = 0, max = 1, value = 0.5, step = 0.05)), 
-               column(4, sliderInput("tau_HLH1CYD1", "tau_HLH1CYD1", min = 0, max = 1, value = 0.5, step = 0.05)), 
+               column(4, sliderInput("kd_HLH1LIN35", "kd_HLH1LIN35", min = 0, max = 1, value = 0.3, step = 0.05)), 
                column(4, sliderInput("tau_E2F", "tau_E2F", min = 0, max = 1, value = 0.5, step = 0.05))
              )
            ),
@@ -93,8 +96,8 @@ ui <- fluidPage(
              h5("UNC-15"), 
              fluidRow(
                column(3, sliderInput("tau_unc15", "tau_unc15", min = 0, max = 1, value = 1, step = 0.05)), 
-               column(3, sliderInput("k_hlh1_unc15", "k_hlh1_unc15", min = 0, max = 1, value = 0.9, step = 0.05)), 
-               column(3, sliderInput("k_mef2_unc15", "k_mef2_unc15", min = 0, max = 1, value = 0.9, step = 0.05)), 
+               column(3, sliderInput("k_hlh1_unc15", "k_hlh1_unc15", min = 0, max = 1, value = 0.8, step = 0.05)), 
+               column(3, sliderInput("k_unc120_unc15", "k_unc120_unc15", min = 0, max = 1, value = 0.8, step = 0.05)), 
                column(3, sliderInput("k_fos1_unc15", "k_fos1_unc15", min = 0, max = 1, value = 0.3, step = 0.05))
              )
            )
@@ -107,18 +110,19 @@ ui <- fluidPage(
 server <- function(input, output, session) {
   
   params_chosen <- reactive(c(tau_hlh1 = input$tau_hlh1, tau_fos1 = input$tau_fos1, tau_cyd1 = input$tau_cyd1, tau_cye1 = input$tau_cye1, 
-                     tau_cki1 = input$tau_cki1, tau_lin35 = input$tau_lin35, tau_mef2 = input$tau_mef2, 
+                     tau_cki1 = input$tau_cki1, tau_lin35 = input$tau_lin35, tau_unc120 = input$tau_unc120, 
                      tau_HLH1LIN35 = input$tau_HLH1LIN35, 
-                     tau_HLH1CYD1 = input$tau_HLH1CYD1,
                      tau_E2F = input$tau_E2F, 
                      tau_rnr1 = input$tau_rnr1, tau_unc15 = input$tau_unc15, 
                      k_mls2_hlh1 = input$k_mls2_hlh1, k_hlh1_hlh1 = input$k_hlh1_hlh1, k_fos1_hlh1 = input$k_fos1_hlh1, 
                      k_lin1_fos1 = input$k_lin1_fos1, k_hlh1_fos1 = input$k_hlh1_fos1, 
                      k_fos1_cyd1 = input$k_fos1_cyd1, k_e2f_cye1 = input$k_e2f_cye1, 
                      k_hlh1_cki1 = input$k_hlh1_cki1, k_hlh1_lin35 = input$k_hlh1_lin35, 
-                     k_hlh1_mef2 = input$k_hlh1_mef2, k_mef2_mef2 = input$k_mef2_mef2, k_fos1_mef2 = input$k_fos1_mef2, 
+                     k_hlh1_unc120 = input$k_hlh1_unc120, k_fos1_unc120 = input$k_fos1_unc120, 
                      k_e2f_rnr1 = input$k_e2f_rnr1, 
-                     k_hlh1_unc15 = input$k_hlh1_unc15, k_mef2_unc15 = input$k_mef2_unc15, k_fos1_unc15 = input$k_fos1_unc15))
+                     k_hlh1_unc15 = input$k_hlh1_unc15, k_unc120_unc15 = input$k_unc120_unc15, k_fos1_unc15 = input$k_fos1_unc15, 
+                     k_cye1_hlh1 = input$k_cye1_hlh1, k_cki1_hlh1 = input$k_cki1_hlh1, 
+                     kd_HLH1LIN35 = input$kd_HLH1LIN35, k_mls2_cye1 = input$k_mls2_cye1))
   
   display_dat <- reactive(input$display_dat)
   scenario <- reactive(input$scenario)
